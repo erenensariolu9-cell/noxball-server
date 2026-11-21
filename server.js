@@ -1,14 +1,10 @@
 /* =====================================================================
-   NOXBALL MAÇ SUNUCUSU  (Render)
+   NOXBALL MAÇ SUNUCUSU  (Render)   v1.1
    - SADECE maçı yönetir: fizik, skor, geri sayım, gol, bitiş. Hesap/kupa/eşleşme YOKTUR (hepsi Hugging Face'te).
-   - Hugging Face iki oyuncuyu eşleyince her oyuncuya İMZALI BİR BİLET verir (HMAC, MAC_SECRET ile).
-     Oyuncu bu bileti buraya WebSocket ile getirir. Bilet geçerliyse oyuncu odaya alınır.
-   - Maç bitince sonuç, imzalı bir HTTP isteğiyle Hugging Face'e bildirilir (kupa/görev orada işlenir).
-   - Fizik, oyun.html'deki eski "host" fiziğinin BİREBİR kopyasıdır (istemci tahmini aynı kuralları kullanır).
-   Ortam değişkenleri (Render > Environment):
-        MAC_SECRET  (ZORUNLU)  Hugging Face'teki ile AYNI uzun rastgele metin
-        HF_URL      (ZORUNLU)  örn. https://noxball-noxball-server.hf.space
-        PORT        Render kendisi verir (varsayılan 10000)
+   - Hugging Face oyuncuları eşleyince her oyuncuya İMZALI BİR BİLET verir (HMAC, MAC_SECRET ile).
+   - Maç bitince sonuç, imzalı bir HTTP isteğiyle Hugging Face'e bildirilir.
+   - YENİ: 2v2 odaları (4 oyuncu: a,b = bir takım, c,d = diğer takım). Biletteki  m:2  2v2 odası demektir, s = takım içi sıra (0/1).
+   Ortam değişkenleri: MAC_SECRET, HF_URL, PORT
    ===================================================================== */
 'use strict';
 const http = require('http');
@@ -28,12 +24,13 @@ const KALE = { sol: 130, sag: 270, derinlik: 24, direkR: 5 };
 const SEKME = 0.94;
 const MAX_TOP_HIZI = 17;
 const HEDEF_GOL = 3;
-const GERI_SAYIM = 180;          // 3 sn
-const GOL_KUTLAMA = 180;         // 3 sn
-const MIN_MAC_MS = 15000;        // bundan kısa süren maçta ayrılan olursa maç İPTAL (sonuç yok)
-const KOPMA_TOLERANS = 6000;     // bağlantısı kopan oyuncuya geri dönmesi için süre
-const SUSKUNLUK_MS = 7000;       // bu kadar süre hiç mesaj gelmezse bağlantı ölü sayılır (istemci her sn ping atar)
-const ODA_BEKLEME_MS = 80000;    // iki oyuncu bu sürede gelmezse oda iptal (Render uykudan kalkarken uzun tutuldu)
+const GERI_SAYIM = 180;
+const GOL_KUTLAMA = 180;
+const MIN_MAC_MS = 15000;
+const KOPMA_TOLERANS = 6000;
+const SUSKUNLUK_MS = 7000;
+const ODA_BEKLEME_MS = 80000;
+const V2_X = [130, 270];         // 2v2: takım içi iki oyuncunun başlangıç x konumu
 
 /* ---------------- Bilet doğrulama ---------------- */
 function biletCoz(tk) {
@@ -45,40 +42,54 @@ function biletCoz(tk) {
   const a = Buffer.from(imza), b = Buffer.from(bek);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   let p; try { p = JSON.parse(Buffer.from(yuk, 'base64url').toString('utf8')); } catch (_) { return null; }
-  if (!p || typeof p.mid !== 'string' || (p.p !== 'a' && p.p !== 'b') || (p.r !== 'mavi' && p.r !== 'kirmizi') || !(p.exp > Date.now())) return null;
+  if (!p || typeof p.mid !== 'string' || !(p.r === 'mavi' || p.r === 'kirmizi') || !(p.exp > Date.now())) return null;
+  if (p.m === 2) { if (!['a', 'b', 'c', 'd'].includes(p.p) || !(p.s === 0 || p.s === 1)) return null; }
+  else if (p.p !== 'a' && p.p !== 'b') return null;
   return p;
 }
 
 /* ---------------- Odalar ---------------- */
-const odalar = new Map();    // mid -> oda
-const bitenler = new Map();  // mid -> bitiş zamanı (aynı bilet ikinci kez oda açamasın)
+const odalar = new Map();
+const bitenler = new Map();
+const roller = o => o.v2 ? ['a', 'b', 'c', 'd'] : ['a', 'b'];
 
-function yeniOda(id) {
-  return {
-    id, olusma: Date.now(), t0: 0, basladi: false, bitti2: false,
-    oy: { a: null, b: null },
+function yeniDisk(x, y) { return { x, y, r: 24, vx: 0, vy: 0, hedefX: x, hedefY: y }; }
+function yeniOda(id, v2) {
+  const o = {
+    id, v2: !!v2, olusma: Date.now(), t0: 0, basladi: false, bitti2: false,
+    oy: { a: null, b: null, c: null, d: null },
     top: { x: 200, y: 300, r: 14, vx: 0, vy: 0, surtunme: 0.986, aci: 0 },
-    mavi: { x: 200, y: 480, r: 24, vx: 0, vy: 0, hedefX: 200, hedefY: 480 },
-    kirmizi: { x: 200, y: 120, r: 24, vx: 0, vy: 0, hedefX: 200, hedefY: 120 },
+    mavi: yeniDisk(v2 ? V2_X[0] : 200, 480), kirmizi: yeniDisk(v2 ? V2_X[0] : 200, 120),
+    mavi2: null, kirmizi2: null,
     gol: { aktif: false, kim: '', z: 0 },
     skorM: 0, skorK: 0, bitenKim: null, sonVuran: 'mavi', sayac: GERI_SAYIM, tick: 0,
     sSonAnahtar: '', sSonG: 0, sSonV: 0, sSonZaman: 0
   };
+  if (v2) { o.mavi2 = yeniDisk(V2_X[1], 480); o.kirmizi2 = yeniDisk(V2_X[1], 120); }
+  return o;
 }
 const zaman = o => Math.round(o.tick * STEP * 10) / 10;
 function gonder(ws, obj) { if (ws && ws.readyState === 1) { try { ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); } catch (_) {} } }
 function yayin(o, obj, hizli) {
   const s = JSON.stringify(obj);
-  for (const r of ['a', 'b']) {
+  for (const r of roller(o)) {
     const oy = o.oy[r];
     if (!oy || !oy.ws || oy.ws.readyState !== 1) continue;
-    if (hizli && oy.ws.bufferedAmount > 16384) continue;   // tıkanmış hat: eski görüntüyü biriktirme
+    if (hizli && oy.ws.bufferedAmount > 16384) continue;
     try { oy.ws.send(s); } catch (_) {}
   }
 }
-const diskOf = (o, oy) => oy.renk === 'mavi' ? o.mavi : o.kirmizi;
+function diskOf(o, oy) {
+  if (!o.v2) return oy.renk === 'mavi' ? o.mavi : o.kirmizi;
+  return oy.renk === 'mavi' ? (oy.slot ? o.mavi2 : o.mavi) : (oy.slot ? o.kirmizi2 : o.kirmizi);
+}
+function diskListe(o) {            // [disk, renk] çiftleri
+  const l = [[o.mavi, 'mavi'], [o.kirmizi, 'kirmizi']];
+  if (o.v2) l.push([o.mavi2, 'mavi'], [o.kirmizi2, 'kirmizi']);
+  return l;
+}
 
-/* ---------------- FİZİK (oyun.html fizikGuncelle birebir) ---------------- */
+/* ---------------- FİZİK ---------------- */
 function diskHareket(d) {
   const ex = d.x, ey = d.y;
   d.x += (d.hedefX - d.x) * 0.35;
@@ -126,33 +137,36 @@ function golBaslat(o, kim) {
   const vs = Math.sqrt(t.vx * t.vx + t.vy * t.vy), sallanma = Math.min(18, Math.max(5, vs * 0.8));
   if (kim === 'mavi') o.skorM++; else o.skorK++;
   yayin(o, { k: 'g', t: zaman(o), w: kim, m: o.skorM, r: o.skorK, s: Math.round(sallanma * 10) / 10 });
-  if (o.skorM >= HEDEF_GOL || o.skorK >= HEDEF_GOL) o.bitenKim = kim;   // ilk 3 gol: kutlamadan sonra maç biter
+  if (o.skorM >= HEDEF_GOL || o.skorK >= HEDEF_GOL) o.bitenKim = kim;
   t.vx *= 0.2; t.vy *= 0.2;
 }
 function santraSifirla(o) {
   const t = o.top;
   o.gol.aktif = false;
   t.x = 200; t.y = 300; t.vx = 0; t.vy = 0;
-  Object.assign(o.mavi, { x: 200, y: 480, hedefX: 200, hedefY: 480, vx: 0, vy: 0 });
-  Object.assign(o.kirmizi, { x: 200, y: 120, hedefX: 200, hedefY: 120, vx: 0, vy: 0 });
+  const bas = (d, x, y) => Object.assign(d, { x, y, hedefX: x, hedefY: y, vx: 0, vy: 0 });
+  bas(o.mavi, o.v2 ? V2_X[0] : 200, 480); bas(o.kirmizi, o.v2 ? V2_X[0] : 200, 120);
+  if (o.v2) { bas(o.mavi2, V2_X[1], 480); bas(o.kirmizi2, V2_X[1], 120); }
   o.sonVuran = 'mavi';
 }
 
 function adim(o) {
   const t = o.top;
-  if (o.sayac > 0) { o.sayac--; diskHareket(o.mavi); diskHareket(o.kirmizi); return; }   // maç başı geri sayım: top durur, diskler hareket eder
+  if (o.sayac > 0) { o.sayac--; for (const [d] of diskListe(o)) diskHareket(d); return; }
 
   if (o.gol.aktif) {
     o.gol.z--;
     t.x += t.vx; t.y += t.vy; t.vx *= 0.85; t.vy *= 0.85;
     if (o.gol.z <= 0) {
-      if (o.bitenKim) macBitir(o, o.bitenKim === 'mavi' ? rolOf(o, 'mavi') : rolOf(o, 'kirmizi'), 'bitti');
-      else santraSifirla(o);
+      if (o.bitenKim) {
+        if (o.v2) macBitirV2(o, o.bitenKim, 'bitti');
+        else macBitir(o, rolOf(o, o.bitenKim), 'bitti');
+      } else santraSifirla(o);
     }
     return;
   }
 
-  diskHareket(o.mavi); diskHareket(o.kirmizi);
+  for (const [d] of diskListe(o)) diskHareket(d);
 
   let gh = Math.sqrt(t.vx * t.vx + t.vy * t.vy);
   if (gh > MAX_TOP_HIZI) { t.vx = (t.vx / gh) * MAX_TOP_HIZI; t.vy = (t.vy / gh) * MAX_TOP_HIZI; }
@@ -181,11 +195,10 @@ function adim(o) {
       if (t.y - t.r > SAHA.alt) golBaslat(o, 'kirmizi');
     } else if (t.y + t.r > SAHA.alt) { t.y = SAHA.alt - t.r; t.vy *= -SEKME; }
   }
-  carpismayiCoz(o, o.mavi, 'mavi');
-  carpismayiCoz(o, o.kirmizi, 'kirmizi');
+  for (const [d, renk] of diskListe(o)) carpismayiCoz(o, d, renk);
 }
 
-// Anlık görüntü: değişmediyse (ve 250 ms dolmadıysa) gönderilmez; yüksek ping/bant için tasarruf
+// Anlık görüntü. 1v1: k:'s' (b,m,r)   2v2: k:'s2' (m ve r dizileri 4 sayı: [x0,y0,x1,y1])
 function goruntu(o) {
   o.tick++;
   const t = o.top;
@@ -194,11 +207,12 @@ function goruntu(o) {
   const r = q => Math.round(q * 10) / 10;
   const b = [r(t.x), r(t.y), r(t.vx), r(t.vy), Math.round(t.aci * 100) / 100];
   const m = [r(o.mavi.x), r(o.mavi.y)], rk = [r(o.kirmizi.x), r(o.kirmizi.y)];
+  if (o.v2) { m.push(r(o.mavi2.x), r(o.mavi2.y)); rk.push(r(o.kirmizi2.x), r(o.kirmizi2.y)); }
   const now = Date.now();
   const anahtar = b.join() + '|' + m.join() + '|' + rk.join() + '|' + g + v + '|' + Math.ceil(o.sayac / 60);
   if (g === 0 && !durumDegisti && anahtar === o.sSonAnahtar && now - o.sSonZaman < 250) return;
   o.sSonAnahtar = anahtar; o.sSonZaman = now; o.sSonG = g; o.sSonV = v;
-  yayin(o, { k: 's', t: zaman(o), b: b, m: m, r: rk, g: g, z: o.gol.z, v: v, c: o.sayac }, true);
+  yayin(o, { k: o.v2 ? 's2' : 's', t: zaman(o), b: b, m: m, r: rk, g: g, z: o.gol.z, v: v, c: o.sayac }, true);
 }
 
 /* ---------------- Maç yaşam döngüsü ---------------- */
@@ -210,12 +224,11 @@ function odaKapat(o, gecikme) {
   o.bitti2 = true;
   bitenler.set(o.id, Date.now());
   setTimeout(() => {
-    for (const r of ['a', 'b']) { const oy = o.oy[r]; if (oy && oy.ws) { oy.ws.oy = null; try { oy.ws.close(); } catch (_) {} } }
+    for (const r of roller(o)) { const oy = o.oy[r]; if (oy && oy.ws) { oy.ws.oy = null; try { oy.ws.close(); } catch (_) {} } }
     odalar.delete(o.id);
   }, gecikme || 0);
 }
-// kazRol: 'a' | 'b'.  Sonuç Hugging Face'e gider, oyunculara bitiş mesajı gider.
-function macBitir(o, kazRol, neden) {
+function macBitir(o, kazRol, neden) {          // 1v1
   if (o.bitti2) return;
   const kazRenk = renkOf(o, kazRol);
   yayin(o, { k: 'son', w: kazRenk, m: o.skorM, r: o.skorK, n: neden });
@@ -223,16 +236,29 @@ function macBitir(o, kazRol, neden) {
   sonucBildir({ mid: o.id, kazanan: kazRol, gol: { a: golOf('a'), b: golOf('b') }, neden: neden, sure: Date.now() - o.t0 });
   odaKapat(o, 2500);
 }
-// Sonuçsuz iptal: kalan oyuncu istemcide yeniden eşleşmeye döner
+function macBitirV2(o, kazRenk, neden) {       // 2v2: kazanan takım rengi
+  if (o.bitti2) return;
+  yayin(o, { k: 'son', w: kazRenk, m: o.skorM, r: o.skorK, n: neden });
+  sonucBildir({ mid: o.id, mod: 'v2', kazanan: kazRenk, gol: { mavi: o.skorM, kirmizi: o.skorK }, neden: neden, sure: Date.now() - o.t0 });
+  odaKapat(o, 2500);
+}
 function macIptal(o) {
   if (o.bitti2) return;
   yayin(o, { k: 'iptal' });
   odaKapat(o, 500);
 }
-// Bir oyuncu gitti: maç yeterince sürdüyse diğeri kazanır, yoksa iptal
 function oyuncuAyrildi(o, rol) {
   if (o.bitti2) return;
   if (!o.basladi || Date.now() - o.t0 < MIN_MAC_MS) return macIptal(o);
+  if (o.v2) {
+    const oy = o.oy[rol]; if (oy) oy.ayrildi = true;
+    const takimGitti = renk => roller(o).filter(r => o.oy[r] && o.oy[r].renk === renk).every(r => o.oy[r].ayrildi);
+    const mg = takimGitti('mavi'), kg = takimGitti('kirmizi');
+    if (mg && kg) return macIptal(o);
+    if (mg) return macBitirV2(o, 'kirmizi', 'ayrildi');
+    if (kg) return macBitirV2(o, 'mavi', 'ayrildi');
+    return;                                   // takımdan biri gitti, diğeri devam ediyor
+  }
   macBitir(o, digerRol(rol), 'ayrildi');
 }
 
@@ -266,7 +292,7 @@ function donguBaslat() {
   dongu = setInterval(() => {
     const now = process.hrtime.bigint();
     birikim += Number(now - sonHr) / 1e6; sonHr = now;
-    if (birikim > 250) birikim = 250;   // uzun takılmadan sonra hızlı sarma yapma
+    if (birikim > 250) birikim = 250;
     let n = 0;
     while (birikim >= STEP && n < 8) {
       birikim -= STEP; n++;
@@ -276,7 +302,7 @@ function donguBaslat() {
   }, 5);
 }
 
-/* ---------------- Bakım (1 sn): kopma / sessizlik / bekleme zaman aşımı ---------------- */
+/* ---------------- Bakım (1 sn) ---------------- */
 setInterval(() => {
   const now = Date.now();
   for (const o of [...odalar.values()]) {
@@ -286,13 +312,14 @@ setInterval(() => {
       continue;
     }
     const gidenler = [];
-    for (const r of ['a', 'b']) {
+    for (const r of roller(o)) {
       const oy = o.oy[r];
-      if (!oy) continue;
-      if (oy.bagli && now - oy.gor > SUSKUNLUK_MS) { try { oy.ws.terminate(); } catch (_) {} }   // ölü bağlantı: close olayı kopmayı işler
+      if (!oy || oy.ayrildi) continue;
+      if (oy.bagli && now - oy.gor > SUSKUNLUK_MS) { try { oy.ws.terminate(); } catch (_) {} }
       if (!oy.bagli && oy.kopus && now - oy.kopus > KOPMA_TOLERANS) gidenler.push(r);
     }
-    if (gidenler.length === 2) macIptal(o);                       // ikisi de gitti: sonuçsuz
+    if (o.v2) { for (const r of gidenler) { if (o.bitti2) break; oyuncuAyrildi(o, r); } continue; }
+    if (gidenler.length === 2) macIptal(o);
     else if (gidenler.length === 1) oyuncuAyrildi(o, gidenler[0]);
   }
   for (const [id, t] of bitenler) if (now - t > 4 * 3600e3) bitenler.delete(id);
@@ -316,22 +343,25 @@ const EMOJI_ID = /^[a-z0-9_]{1,24}$/;
 const kisitla = (v, a, b) => Math.max(a, Math.min(b, v));
 
 function odayaAl(ws, p) {
+  const v2 = p.m === 2;
   if (bitenler.has(p.mid)) return gonder(ws, { k: 'iptal' }), ws.close();
   let o = odalar.get(p.mid);
-  if (!o) { o = yeniOda(p.mid); odalar.set(p.mid, o); donguBaslat(); }
-  if (o.bitti2) return gonder(ws, { k: 'iptal' }), ws.close();
+  if (!o) { o = yeniOda(p.mid, v2); odalar.set(p.mid, o); donguBaslat(); }
+  if (o.bitti2 || o.v2 !== v2) return gonder(ws, { k: 'iptal' }), ws.close();
   let oy = o.oy[p.p];
-  const diger = o.oy[digerRol(p.p)];
-  if (diger && diger.renk === p.r) return ws.close();            // aynı renk iki oyuncu: imzalı biletlerde olmaması gerekir
-  if (!oy) oy = o.oy[p.p] = { rol: p.p, renk: p.r, ws: null, bagli: false, gor: 0, kopus: 0, gSeq: 0, emojiT: 0 };
+  if (!v2) {
+    const diger = o.oy[digerRol(p.p)];
+    if (diger && diger.renk === p.r) return ws.close();            // aynı renk iki oyuncu: olmamalı
+  }
+  if (!oy) oy = o.oy[p.p] = { rol: p.p, renk: p.r, slot: v2 ? p.s : 0, ws: null, bagli: false, gor: 0, kopus: 0, gSeq: 0, emojiT: 0, ayrildi: false };
   else if (oy.renk !== p.r) return ws.close();
-  if (oy.ws && oy.ws !== ws) { oy.ws.oy = null; try { oy.ws.close(); } catch (_) {} }   // aynı biletle yeni bağlantı: eskisi düşer
+  if (oy.ws && oy.ws !== ws) { oy.ws.oy = null; try { oy.ws.close(); } catch (_) {} }
   oy.ws = ws; oy.bagli = true; oy.gor = Date.now(); oy.kopus = 0;
   ws.oy = oy; ws.oda = o;
   gonder(ws, { k: 'ok' });
-  o.sSonAnahtar = '';                                            // yeni bağlanan hemen güncel görüntü alsın
-  if (o.basladi) gonder(ws, { k: 'go' });                        // yeniden bağlanma
-  else if (o.oy.a && o.oy.b && o.oy.a.bagli && o.oy.b.bagli) {   // iki oyuncu da hazır: maç başlıyor
+  o.sSonAnahtar = '';
+  if (o.basladi) gonder(ws, { k: 'go' });
+  else if (roller(o).every(r => o.oy[r] && o.oy[r].bagli)) {          // herkes hazır: maç başlıyor
     o.basladi = true; o.t0 = Date.now();
     yayin(o, { k: 'go' });
   }
@@ -339,13 +369,13 @@ function odayaAl(ws, p) {
 
 wss.on('connection', ws => {
   ws.canli = true; ws.oy = null; ws.oda = null; ws.msjSay = 0; ws.msjT = Date.now();
-  const zt = setTimeout(() => { if (!ws.oy) ws.terminate(); }, 15000);   // bilet göstermeyen bağlantıyı at
+  const zt = setTimeout(() => { if (!ws.oy) ws.terminate(); }, 15000);
   ws.on('pong', () => { ws.canli = true; });
   ws.on('message', raw => {
     ws.canli = true;
     const now = Date.now();
     if (now - ws.msjT > 1000) { ws.msjT = now; ws.msjSay = 0; }
-    if (++ws.msjSay > 200) return;                               // saniyede en fazla 200 mesaj
+    if (++ws.msjSay > 200) return;
     let m; try { m = JSON.parse(raw); } catch (_) { return; }
     if (!m || typeof m !== 'object') return;
     if (m.k === 'hi') {
@@ -359,7 +389,7 @@ wss.on('connection', ws => {
     oy.gor = now;
     switch (m.k) {
       case 'pi': if (typeof m.t === 'number') gonder(ws, { k: 'po', t: m.t }); break;
-      case 'i': {                                                // hedef konum (dünya koordinatı)
+      case 'i': {
         const x = +m.x, y = +m.y;
         if (!isFinite(x) || !isFinite(y) || !o.basladi) return;
         if (typeof m.n === 'number') { if (m.n <= oy.gSeq) return; oy.gSeq = m.n; }
@@ -368,20 +398,23 @@ wss.on('connection', ws => {
         d.hedefY = oy.renk === 'mavi' ? kisitla(y, 300 + r, SAHA.alt - r) : kisitla(y, SAHA.ust + r, 300 - r);
         break;
       }
-      case 'e': {                                                // emoji: rakibe ilet
+      case 'e': {                                                // emoji: diğer herkese ilet (2v2'de kimin gönderdiği de gider)
         if (typeof m.id !== 'string' || !EMOJI_ID.test(m.id) || now - oy.emojiT < 500) return;
         oy.emojiT = now;
-        const dg = o.oy[digerRol(oy.rol)];
-        if (dg) gonder(dg.ws, { k: 'e', id: m.id });
+        for (const r of roller(o)) {
+          if (r === oy.rol) continue;
+          const dg = o.oy[r];
+          if (dg) gonder(dg.ws, o.v2 ? { k: 'e', id: m.id, c: oy.renk, s: oy.slot } : { k: 'e', id: m.id });
+        }
         break;
       }
-      case 'bye': ws.oy = null; oy.ws = null; oy.bagli = false; oyuncuAyrildi(o, oy.rol); break;   // oyuncu bilerek ayrıldı
+      case 'bye': ws.oy = null; oy.ws = null; oy.bagli = false; oyuncuAyrildi(o, oy.rol); break;
     }
   });
   ws.on('close', () => {
     clearTimeout(zt);
     const oy = ws.oy;
-    if (oy && oy.ws === ws) { oy.ws = null; oy.bagli = false; oy.kopus = Date.now(); }   // tolerans süresi içinde aynı biletle dönebilir
+    if (oy && oy.ws === ws) { oy.ws = null; oy.bagli = false; oy.kopus = Date.now(); }
   });
   ws.on('error', () => {});
 });
