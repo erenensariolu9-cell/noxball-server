@@ -896,6 +896,16 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
 .lb-slot.ben { background: linear-gradient(165deg, rgba(0,210,211,.2), rgba(16,22,34,.92)); box-shadow: 0 0 22px rgba(0,210,211,.18); }
 .lb-rol { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,.08); color: #a4b0be; }
 .lb-rol.lider { background: rgba(255,213,74,.15); color: #ffd54a; }
+.lb-hz { font-size: 9px; font-weight: 900; letter-spacing: 1px; padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,.07); color: #8895a7; }
+.lb-hz.ok { background: rgba(46,213,115,.18); color: #2ed573; box-shadow: 0 0 10px rgba(46,213,115,.25); }
+.lb-slot.hazir { border-color: rgba(46,213,115,.65) !important; }
+.lb-modlar { display: flex; gap: 6px; flex-shrink: 0; }
+.lb-mod { flex: 1; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #a4b0be; border-radius: 12px; padding: 9px 4px; font-family: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.lb-mod.aktif { background: linear-gradient(135deg,#00d2d3,#1e90ff); border-color: transparent; color: #fff; }
+.lb-mod:disabled { opacity: .35; cursor: default; }
+.lb-basla.hazir { background: linear-gradient(135deg,#2ed573,#1aa85a) !important; }
+.lb-basla.bekle { background: linear-gradient(135deg,#ffa502,#e67e22) !important; }
+.lb-basla.ara { background: linear-gradient(135deg,#ff4757,#c0392b) !important; }
 .lb-basla { width: 100%; border: 0; border-radius: 16px; padding: 14px 10px; cursor: pointer; font-family: inherit; font-size: 17px; font-weight: 900; letter-spacing: 1.5px; color: #fff;
     background: linear-gradient(135deg, #2ed573, #14b85a); box-shadow: 0 8px 24px rgba(46,213,115,.35); display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .lb-basla small { font-size: 10px; font-weight: 700; letter-spacing: .5px; opacity: .85; }
@@ -1024,12 +1034,19 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
                 </div>
                 <div class="mod-ikon-kutu online-renk">VS</div>
             </div>
-            <div class="mod-karti online-kart" onclick="V2.ac('')">
+            <div class="mod-karti online-kart" onclick="V2.ac('', 'v2')">
                 <div class="mod-bilgi">
                     <h3 class="online-renk">2v2 ONLINE</h3>
                     <p>İki kişilik takımlar karşı karşıya. Tek girersen rastgele bir takım arkadaşı bulunur.</p>
                 </div>
                 <div class="mod-ikon-kutu online-renk">2v2</div>
+            </div>
+            <div class="mod-karti online-kart" onclick="V2.ac('', 'v3')">
+                <div class="mod-bilgi">
+                    <h3 class="online-renk">3v3 ONLINE</h3>
+                    <p>Üç kişilik takımlar, daha büyük saha. Tek girersen rastgele takım arkadaşları bulunur.</p>
+                </div>
+                <div class="mod-ikon-kutu online-renk">3v3</div>
             </div>
             <div class="mod-karti kolay-kart" onclick="oyunaBasla('kolay')">
                 <div class="mod-bilgi">
@@ -2003,53 +2020,54 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         carpismayiCoz(oyuncu);
         carpismayiCoz(rakip);
     }
-    function kaleCiz(ustMu) {
-        let y = ustMu ? SAHA.ust - KALE.derinlik : SAHA.alt;
+    function kaleCiz(ustMu, TG) {
+        const S = TG || SAHA, K = TG ? { sol: TG.kSol, sag: TG.kSag, derinlik: TG.kDer, direkR: K.direkR * TG.f, cx: TG.cx, k: TG.f } : { sol: K.sol, sag: K.sag, derinlik: K.derinlik, direkR: K.direkR, cx: 200, k: 1 };
+        let y = ustMu ? S.ust - K.derinlik : S.alt;
         let sallanma = ustMu ? ustFileSallanma : altFileSallanma;
         let ofset = Math.sin(fileZaman) * sallanma;
         let renk = ustMu ? "rgba(255, 71, 87, 0.35)" : "rgba(30, 144, 255, 0.35)";
         ctx.fillStyle = renk;
         ctx.beginPath();
-        ctx.moveTo(KALE.sol, ustMu ? SAHA.ust : SAHA.alt);
-        ctx.lineTo(KALE.sol + ofset * 0.4, ustMu ? y - Math.abs(ofset)*0.3 : y + KALE.derinlik + Math.abs(ofset)*0.3);
-        ctx.lineTo(KALE.sag + ofset * 0.4, ustMu ? y - Math.abs(ofset)*0.3 : y + KALE.derinlik + Math.abs(ofset)*0.3);
-        ctx.lineTo(KALE.sag, ustMu ? SAHA.ust : SAHA.alt);
+        ctx.moveTo(K.sol, ustMu ? S.ust : S.alt);
+        ctx.lineTo(K.sol + ofset * 0.4, ustMu ? y - Math.abs(ofset)*0.3 : y + K.derinlik + Math.abs(ofset)*0.3);
+        ctx.lineTo(K.sag + ofset * 0.4, ustMu ? y - Math.abs(ofset)*0.3 : y + K.derinlik + Math.abs(ofset)*0.3);
+        ctx.lineTo(K.sag, ustMu ? S.ust : S.alt);
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
-        ctx.lineWidth = 1;
-        for (let x = KALE.sol + 10; x < KALE.sag; x += 12) {
+        ctx.lineWidth = K.k;
+        for (let x = K.sol + 10 * K.k; x < K.sag; x += 12 * K.k) {
             ctx.beginPath();
-            ctx.moveTo(x, ustMu ? SAHA.ust : SAHA.alt);
-            ctx.lineTo(x + ofset * 0.5, ustMu ? y : y + KALE.derinlik);
+            ctx.moveTo(x, ustMu ? S.ust : S.alt);
+            ctx.lineTo(x + ofset * 0.5, ustMu ? y : y + K.derinlik);
             ctx.stroke();
         }
         for (let i = 1; i <= 3; i++) {
-            let yCizgi = ustMu ? SAHA.ust - (i * 6) : SAHA.alt + (i * 6);
+            let yCizgi = ustMu ? S.ust - (i * 6 * K.k) : S.alt + (i * 6 * K.k);
             ctx.beginPath();
-            ctx.moveTo(KALE.sol, yCizgi);
-            ctx.quadraticCurveTo(200 + ofset, yCizgi + (ustMu ? -ofset*0.2 : ofset*0.2), KALE.sag, yCizgi);
+            ctx.moveTo(K.sol, yCizgi);
+            ctx.quadraticCurveTo(K.cx + ofset, yCizgi + (ustMu ? -ofset*0.2 : ofset*0.2), K.sag, yCizgi);
             ctx.stroke();
         }
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 4 * K.k;
         ctx.lineJoin = "round";
         ctx.beginPath();
         if (ustMu) {
-            ctx.moveTo(KALE.sol, SAHA.ust);
-            ctx.lineTo(KALE.sol + ofset * 0.3, y);
-            ctx.lineTo(KALE.sag + ofset * 0.3, y);
-            ctx.lineTo(KALE.sag, SAHA.ust);
+            ctx.moveTo(K.sol, S.ust);
+            ctx.lineTo(K.sol + ofset * 0.3, y);
+            ctx.lineTo(K.sag + ofset * 0.3, y);
+            ctx.lineTo(K.sag, S.ust);
         } else {
-            ctx.moveTo(KALE.sol, SAHA.alt);
-            ctx.lineTo(KALE.sol + ofset * 0.3, y + KALE.derinlik);
-            ctx.lineTo(KALE.sag + ofset * 0.3, y + KALE.derinlik);
-            ctx.lineTo(KALE.sag, SAHA.alt);
+            ctx.moveTo(K.sol, S.alt);
+            ctx.lineTo(K.sol + ofset * 0.3, y + K.derinlik);
+            ctx.lineTo(K.sag + ofset * 0.3, y + K.derinlik);
+            ctx.lineTo(K.sag, S.alt);
         }
         ctx.stroke();
         ctx.fillStyle = "#ecf0f1";
-        ctx.beginPath(); ctx.arc(KALE.sol, ustMu ? SAHA.ust : SAHA.alt, KALE.direkR, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(KALE.sag, ustMu ? SAHA.ust : SAHA.alt, KALE.direkR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(K.sol, ustMu ? S.ust : S.alt, K.direkR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(K.sag, ustMu ? S.ust : S.alt, K.direkR, 0, Math.PI * 2); ctx.fill();
     }
     /* ================= PROFESYONEL TOP & İZ MOTORU ================= */
     const TAU = Math.PI * 2;
@@ -2422,21 +2440,24 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         ctx.fillStyle = "#ff4757"; ctx.fillRect(0, 0, CW, CH / 2);
         ctx.fillStyle = "#1e90ff"; ctx.fillRect(0, CH / 2, CW, CH / 2);
         try { tribunCiz(); } catch (e) {}
+        const TG = V2.aktif ? V2.G : null, SA = TG || { sol: SAHA.sol, ust: SAHA.ust, sag: SAHA.sag, alt: SAHA.alt, w: 320, h: 530, mid: 300, cx: 200, f: 1 };
         ctx.save();
-        ctx.beginPath(); ctx.roundRect(SAHA.sol, SAHA.ust, 320, 530, SAHA.koseR); ctx.clip();
-        ctx.fillStyle = "#2ecc71"; ctx.fillRect(SAHA.sol, SAHA.ust, 320, 530);
+        if (TG) { ctx.translate(SAHA.sol, SAHA.ust); ctx.scale(1 / TG.f, 1 / TG.f); ctx.translate(-SAHA.sol, -SAHA.ust); }   // büyük saha: dünya ekrana 1/f küçültülür
+        ctx.save();
+        ctx.beginPath(); ctx.roundRect(SA.sol, SA.ust, SA.w, SA.h, SAHA.koseR); ctx.clip();
+        ctx.fillStyle = "#2ecc71"; ctx.fillRect(SA.sol, SA.ust, SA.w, SA.h);
         ctx.fillStyle = "#27ae60";
         for (let i = 0; i < 5; i++) {
-            if (i % 2 === 1) ctx.fillRect(SAHA.sol, SAHA.ust + (i * 106), 320, 106);
+            if (i % 2 === 1) ctx.fillRect(SA.sol, SA.ust + i * SA.h / 5, SA.w, SA.h / 5);
         }
         ctx.restore();
-        ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(SAHA.sol, 300); ctx.lineTo(SAHA.sag, 300); ctx.stroke();
-        ctx.beginPath(); ctx.arc(200, 300, 45, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 3 * SA.f;
+        ctx.beginPath(); ctx.moveTo(SA.sol, SA.mid); ctx.lineTo(SA.sag, SA.mid); ctx.stroke();
+        ctx.beginPath(); ctx.arc(SA.cx, SA.mid, 45 * SA.f, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255,0.9)";
-        ctx.beginPath(); ctx.arc(200, 300, 4, 0, Math.PI * 2); ctx.fill();
-        kaleCiz(true);
-        kaleCiz(false);
+        ctx.beginPath(); ctx.arc(SA.cx, SA.mid, 4 * SA.f, 0, Math.PI * 2); ctx.fill();
+        kaleCiz(true, TG);
+        kaleCiz(false, TG);
         if (V2.aktif) V2.diskleriCiz();
         else {
         diskCiz(gorX(rakip), gorY(rakip), rakip.r, 'kirmizi', kostumKirmizi());
@@ -2444,6 +2465,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         }
         izCiz();
         secilenTopuCiz();
+        ctx.restore();   // büyük saha dönüşümü
         ctx.restore();   // bundan sonrası ekran koordinatında (yazılar düz kalır)
         hudGuncelle();
         if (golDurumu.aktif) {
@@ -2471,7 +2493,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         if (zaman - sonCizimZamani < 1000 / hedefFps - 2) return;
         sonCizimZamani = zaman;
         frameSayaci++;
-        if (zaman - sonZaman >= 1000) { fps = frameSayaci; frameSayaci = 0; sonZaman = zaman; }
+        if (zaman - sonZaman >= 1000) { fps = frameSayaci; frameSayaci = 0; sonZaman = zaman; kaliteDenetle(); }
         if (V2.aktif) { V2.kare(); return; }
         // Online misafir: fizik çalıştırmaz, host'tan gelen görüntüyü çizer
         if (ONL.aktif && !ONL.host) { misafirKare(); return; }
@@ -3190,7 +3212,10 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
     };
     function onlineEl(id) { return document.getElementById(id); }
     function donukMu() { return (ONL.aktif && ONL.renk === 'kirmizi') || (V2.aktif && V2.renk === 'kirmizi'); }
-    function ekranNokta(x, y) { return donukMu() ? { x: CW - x, y: CH - y } : { x: x, y: y }; }
+    function ekranNokta(x, y) {
+        if (V2.aktif) { const G = V2.G; x = SAHA.sol + (x - G.sol) / G.f; y = SAHA.ust + (y - G.ust) / G.f; }
+        return donukMu() ? { x: CW - x, y: CH - y } : { x: x, y: y };
+    }
     function izKimin() { if (V2.aktif) return V2.sonVuran === V2.renk ? aktifTopIzi : ((V2.rakipler[0] || {}).iz || aktifTopIzi); return ONL.aktif && ONL.sonVuran !== ONL.renk ? ONL.rakip.iz : aktifTopIzi; }
     function onlineZaman() { return Math.round(ONL.tick * FIZIK_ADIM * 10) / 10; }
     function gecerliId(tablo, id, varsayilan) {
@@ -4254,7 +4279,7 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
         let dt = (now - TR.son) / 1000; if (!(dt > 0) || dt > 0.1) dt = 0.016; TR.son = now;
         if (!TR.hazir) tribunHazirla();
         const donuk = donukMu(), ust = donuk ? 'mavi' : 'kirmizi', alt = donuk ? 'kirmizi' : 'mavi';
-        const by = topNesne.y, hz = Math.min(1, Math.hypot(topNesne.vx, topNesne.vy) / 14);
+        const by = V2.aktif ? SAHA.ust + (topNesne.y - V2.G.ust) / V2.G.f : topNesne.y, hz = Math.min(1, Math.hypot(topNesne.vx, topNesne.vy) / 14);
         const hM = Math.max(0, Math.min(1, (210 - by) / 210)), hK = Math.max(0, Math.min(1, (by - 390) / 210));   // üst kale kırmızının: top oraya yaklaşınca MAVİ coşar
         const hedef = { mavi: 0.18 + 0.62 * hM + 0.2 * hz * hM, kirmizi: 0.18 + 0.62 * hK + 0.2 * hz * hK };
         ['mavi', 'kirmizi'].forEach(k => { TR.hey[k] += (hedef[k] - TR.hey[k]) * Math.min(1, dt * 2.5); });
@@ -4263,14 +4288,14 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
         TR.oncekiGol = g;
         const kut = Math.max(0, 1 - (now - TR.golT) / 5000);
         try { ambiyansGuncelle(Math.max(TR.hey.mavi, TR.hey.kirmizi) * 0.8 + kut * 0.6); } catch (_) {}
-        if (++TR.kare % 45 === 0 && typeof fps === 'number' && fps > 0) TR.kalite = fps < 40 ? 0.5 : (fps >= 52 ? 1 : TR.kalite);
+        if (++TR.kare % 45 === 0 && typeof fps === 'number' && fps > 0) TR.kalite = fps < 25 ? 0.25 : fps < 40 ? 0.5 : (fps >= 52 ? 1 : TR.kalite);
         c.save();
         try {
             c.setTransform(QX, 0, 0, QY, 0, 0);                       // taraftarlar ekran koordinatında: kırmızı oyuncuda saha dönse de dik durur
             c.drawImage(tribunTaban(ust), 0, 0);
-            const SW = TR.SW, SH = TR.SH, F = TR.fanlar, yarim = TR.kalite < 1;
+            const SW = TR.SW, SH = TR.SH, F = TR.fanlar, yarim = TR.kalite < 1, atla = TR.kalite < 0.3 ? 3 : (yarim ? 1 : 0);
             for (let i = 0; i < F.length; i++) {
-                if (yarim && (i & 1)) continue;
+                if (i & atla) continue;
                 const f = F[i], tk = f.z === 'U' ? ust : alt, hey = TR.hey[tk];
                 let poz = 0, amp = 0.3 + 0.9 * hey, hiz = 3 + 3 * hey;
                 if (kut > 0.02 && TR.golKim === tk) { poz = ((now * 0.009 + f.ph * 2) % 2 < 1) ? 1 : 2; if (f.r < 0.3) poz = 3; amp = 2.2 * kut + 0.5; hiz = 11; }
@@ -4594,6 +4619,10 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
    v3.1: TAM EKRAN DÜZEN + HUD + LOBİ + BİLDİRİM + GLOBAL SOHBET + 2v2
    ===================================================================== */
 /* ---------- Saha boyutu: ekranı tamamen kaplar, net çözünürlük ---------- */
+let kaliteQ = 2, dusukFpsSay = 0;   // canvas çözünürlük tavanı; FPS düşerse otomatik azalır
+function kaliteDenetle() {
+    if (fps > 0 && fps < Math.min(hedefFps, 60) * 0.72 && kaliteQ > 1) { if (++dusukFpsSay >= 3) { dusukFpsSay = 0; kaliteQ = Math.max(1, kaliteQ - 0.5); sahaBoyutla(); } } else dusukFpsSay = 0;
+}
 function sahaBoyutla() {
     const ek = document.getElementById('oyun-ekrani'), hud = document.getElementById('hud');
     const gorunur = ek.offsetWidth > 0;
@@ -4606,7 +4635,7 @@ function sahaBoyutla() {
     if (W / CW <= H / CH) sc = Math.min(W / CW * 1.1, H / CH);   // dar ekran: sahayı %10 büyüt, yan tribün kenarı kırpılır
     const cw = Math.floor(CW * sc), ch = Math.floor(CH * sc);
     canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px'; bar.style.width = Math.min(cw, W) + 'px';
-    const q = Math.max(1, Math.min(3, cw * (window.devicePixelRatio || 1) / CW)), nw = Math.round(CW * q), nh = Math.round(CH * q);
+    const q = Math.max(1, Math.min(kaliteQ, cw * (window.devicePixelRatio || 1) / CW)), nw = Math.round(CW * q), nh = Math.round(CH * q);
     if (canvas.width !== nw || canvas.height !== nh) { canvas.width = nw; canvas.height = nh; }
     QX = canvas.width / CW; QY = canvas.height / CH;
 }
@@ -4675,12 +4704,12 @@ const LOBI = {
     d: null, dv: [], son: 0, msj: [], tm: 0, sekme: 'davet', acik: false, emirIsl: 0, emirAktif: false, gorulen: {}, gonderildi: {},
     mesgul: false, kartKey: '', eylemKey: '', cizilen: 0, resetMsj: true, oyT: 0, bnT: 0,
     $: id => document.getElementById(id),
-    hata(h) { return ({ yok: 'Oyuncu bulunamadı.', kendi: 'Kendini davet edemezsin.', cevrimdisi: 'Oyuncu çevrimdışı.', yetki: 'Bunu sadece lobi lideri yapabilir.', lobi_dolu: 'Lobi dolu (en fazla 2 kişi).',
-        zaten: 'Zaten lobide.', baska_lobide: 'Oyuncu başka bir lobide.', davet_yok: 'Davet bulunamadı.', davet_gecersiz: 'Davet artık geçerli değil.', tek_kisi: 'Lobide 2 kişi olmalı.',
+    hata(h) { return ({ yok: 'Oyuncu bulunamadı.', kendi: 'Kendini davet edemezsin.', cevrimdisi: 'Oyuncu çevrimdışı.', yetki: 'Bunu sadece lobi lideri yapabilir.', lobi_dolu: 'Lobi dolu (en fazla 3 kişi).', mod_uygunsuz: 'Bu mod mevcut kişi sayısına uygun değil.',
+        zaten: 'Zaten lobide.', baska_lobide: 'Oyuncu başka bir lobide.', davet_yok: 'Davet bulunamadı.', davet_gecersiz: 'Davet artık geçerli değil.', tek_kisi: 'Özel 1v1 için lobide tam 2 kişi olmalı.',
         cok_sik: 'Çok hızlı yazıyorsun.', lobide_degil: 'Lobide değilsin.', uye_yok: 'Oyuncu lobide değil.', ag: 'Bağlantı hatası.' })[h] || 'Bir hata oluştu.'; },
-    baslat() { this.durdur(); this.tm = setInterval(() => this.yokla(), 3000); this.yokla(); },
+    baslat() { this.durdur(); this.hiz(3000); this.yokla(); },
     durdur() { clearInterval(this.tm); this.tm = 0; this.d = null; this.dv = []; this.son = 0; this.msj = []; this.emirIsl = 0; this.emirAktif = false; this.gorulen = {}; this.kartKey = this.eylemKey = ''; this.resetMsj = true; this.rozet(); this.bannerGizle(); },
-    sifirlaLobi() { this.d = null; this.son = 0; this.msj = []; this.emirIsl = 0; this.emirAktif = false; this.resetMsj = true; this.kartKey = this.eylemKey = ''; },
+    sifirlaLobi() { this.modKey = ''; this.d = null; this.son = 0; this.msj = []; this.emirIsl = 0; this.emirAktif = false; this.resetMsj = true; this.kartKey = this.eylemKey = ''; },
     async yokla() {
         if (!RANK.uid || this.mesgul || oyunAktif) return;
         this.mesgul = true; let r;
@@ -4693,6 +4722,8 @@ const LOBI = {
         this.davetIsle(r.d.davetler || []);
         if (L && this.d && this.d.id === L.id) this.emirIsle(L);
         if (this.acik) this.ciz();
+        const hm = (this.acik || (this.d && this.d.uyeler.some(x => x.hz))) ? 1500 : 3000;
+        if (this.tm && hm !== this.ms) this.hiz(hm);
     },
     emirIsle(L) {
         const e = L.emir;
@@ -4700,21 +4731,28 @@ const LOBI = {
         else if (!e && this.emirAktif) {
             this.emirAktif = false;
             if (V2.bekliyor()) V2.iptal(true);
-            else if (ONL.mod === 'ozel' && !ONL.aktif) { onlineIptal(); toast('Lider aramayı iptal etti.'); }
+            else if (ONL.mod === 'ozel' && !ONL.aktif) { onlineIptal(); toast('Arama iptal edildi.'); }
         }
     },
     emirBaslat(tip, lid) {
         if (oyunAktif || V2.oturum || ONL.aktif || onlineEl('online-bekleme').style.display === 'flex') return;
         this.bildirimKapat(); GLOBAL.kapat(); this.bannerGizle();
         if (tip === 'ozel') { ONL.mod = 'ozel'; ONL.lb = lid; ONL.ozel = true; onlineEl('lobi-ekrani').style.display = 'flex'; onlineAc(); }
-        else V2.ac(lid);
+        else V2.ac(lid, tip);
     },
-    async baslatEmir(tip) {
-        const r = await API.cagir('/api/lobi-baslat', { tip: tip });
+    emirIptal() { API.cagir('/api/lobi-hazir', { hazir: false }, true); },
+    MODLAR: [['v2', '2v2'], ['v3', '3v3'], ['ozel', '1v1 ÖZEL']], modYerel: 'v2', modKey: '', ms: 3000,
+    hiz(ms) { clearInterval(this.tm); this.ms = ms; this.tm = setInterval(() => this.yokla(), ms); },
+    async modSec(mod) {
+        const r = await API.cagir('/api/lobi-mod', { mod: mod });
         if (!r.ok) { toast(this.hata(r.d && r.d.hata)); return; }
-        this.yokla();
+        this.modYerel = mod; this.modKey = ''; this.yokla();
     },
-    emirIptal() { API.cagir('/api/lobi-baslat', { tip: '' }, true); },
+    async hazirYap(h) {
+        const r = await API.cagir('/api/lobi-hazir', { hazir: h });
+        if (!r.ok) { toast(this.hata(r.d && r.d.hata)); return; }
+        this.eylemKey = ''; this.yokla();
+    },
     /* ---- davetler / bildirim ---- */
     davetIsle(liste) {
         const yeni = liste.filter(d => !this.gorulen[d.id]); liste.forEach(d => { this.gorulen[d.id] = 1; });
@@ -4759,10 +4797,10 @@ const LOBI = {
     ac() {
         this.acik = true; const k = this.$('lobi-orta');
         if (!RANK.uid) { k.innerHTML = '<div class="yakinda-karti"><h2>👥 LOBİ</h2><p style="color:#a4b0be;font-size:13px;margin-top:8px">Lobi için giriş yapmalısın.</p></div>'; return; }
-        k.innerHTML = '<div class="kl-kap"><div class="lb-ust"><div><b>👥 LOBİ</b><small>2 kişilik takım • 2v2 maç</small></div><span class="lb-chip" id="lbChip">1/2</span></div><div class="lb-kart" id="lbKart"></div><div class="lb-eylem" id="lbEylem"></div>' +
+        k.innerHTML = '<div class="kl-kap"><div class="lb-ust"><div><b>👥 LOBİ</b><small>Herkes HAZIR deyince arama başlar</small></div><span class="lb-chip" id="lbChip">1/3</span></div><div class="lb-kart" id="lbKart"></div><div class="lb-modlar" id="lbModlar"></div><div class="lb-eylem" id="lbEylem"></div>' +
             '<div class="magaza-ust-sekmeler"><button class="magaza-sekme" id="lbSkS" onclick="LOBI.sekmeSec(\'sohbet\')">💬 LOBİ SOHBET</button><button class="magaza-sekme" id="lbSkD" onclick="LOBI.sekmeSec(\'davet\')">➕ DAVET ET</button></div>' +
             '<div class="kl-kap" id="lbIcerik" style="flex:1"></div></div>';
-        this.kartKey = this.eylemKey = ''; this.sekmeSec(this.sekme); this.ciz(); this.yokla();
+        this.kartKey = this.eylemKey = this.modKey = ''; this.sekmeSec(this.sekme); this.ciz(); this.yokla();
     },
     kapat() { this.acik = false; clearInterval(this.oyT); },
     sekmeSec(t) {
@@ -4779,30 +4817,40 @@ const LOBI = {
         }
     },
     ciz() {
-        this.kartCiz(); this.eylemCiz();
-        const ch = this.$('lbChip'); if (ch) { const n = this.d ? this.d.uyeler.length : 1; ch.textContent = n === 2 ? 'HAZIR 2/2' : n + '/2'; ch.className = 'lb-chip' + (n === 2 ? ' tam' : ''); }
+        this.kartCiz(); this.modCiz(); this.eylemCiz();
+        const ch = this.$('lbChip'); if (ch) { const n = this.d ? this.d.uyeler.length : 1; ch.textContent = n + '/3'; ch.className = 'lb-chip' + (n === 3 ? ' tam' : ''); }
         if (this.sekme === 'sohbet') { if (this.resetMsj) { this.resetMsj = false; this.msjCiz(true); } else this.msjCiz(false); }
     },
     kartCiz() {
         const k = this.$('lbKart'); if (!k) return; const d = this.d;
-        const uy = d ? d.uyeler : [{ ad: RANK.p.ad, nr: RANK.p.nr, ko: aktifKostum, kupa: RANK.p.kupa, lider: false, ben: true }];
+        const uy = d ? d.uyeler : [{ ad: RANK.p.ad, nr: RANK.p.nr, ko: aktifKostum, kupa: RANK.p.kupa, lider: false, ben: true, hz: false }];
         const key = JSON.stringify(uy) + (d ? d.benLider : ''); if (key === this.kartKey) return; this.kartKey = key;
         let h = '';
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 3; i++) {
             const u = uy[i];
-            if (u) h += '<div class="lb-slot' + (u.ben ? ' ben' : '') + '"><canvas class="lb-ko" width="112" height="112" data-ko="' + esc(u.ko) + '"></canvas>' +
-                '<div class="lb-ad"><span' + nickStilAttr(u.nr) + '>' + esc(u.ad) + '</span></div><div class="lb-rol' + (u.lider || !d ? ' lider' : '') + '">' + (u.lider || !d ? '👑 LİDER' : 'ÜYE') + '</div><div class="lb-kupa">🏆 ' + nf(u.kupa) + '</div>' +
+            if (u) h += '<div class="lb-slot' + (u.ben ? ' ben' : '') + (u.hz ? ' hazir' : '') + '"><canvas class="lb-ko" width="112" height="112" data-ko="' + esc(u.ko) + '"></canvas>' +
+                '<div class="lb-ad"><span' + nickStilAttr(u.nr) + '>' + esc(u.ad) + '</span></div><div class="lb-rol' + (u.lider ? ' lider' : '') + '">' + (u.lider ? '👑 LİDER' : 'ÜYE') + '</div>' +
+                '<div class="lb-hz' + (u.hz ? ' ok' : '') + '">' + (u.hz ? '✔ HAZIR' : '⏳ BEKLİYOR') + '</div><div class="lb-kupa">🏆 ' + nf(u.kupa) + '</div>' +
                 (d && d.benLider && !u.ben ? '<button class="kl-btn k" style="min-height:26px;padding:0 10px" onclick="LOBI.at(\'' + esc(u.ad) + '\')">AT</button>' : '') + '</div>';
-            else h += '<div class="lb-slot bos" onclick="LOBI.sekmeSec(\'davet\')"><div class="lb-bosplus">+</div><div class="lb-ad">Oyuncu davet et</div></div>';
+            else h += '<div class="lb-slot bos" onclick="LOBI.sekmeSec(\'davet\')"><div class="lb-bosplus">+</div><div class="lb-ad">Davet et</div></div>';
         }
         k.innerHTML = h; k.querySelectorAll('canvas').forEach(cv => kostumCizKucuk(cv, cv.dataset.ko));
     },
+    modCiz() {
+        const e = this.$('lbModlar'); if (!e) return; const d = this.d, n = d ? d.uyeler.length : 1, mod = d ? d.mod : this.modYerel, arama = !!(d && d.emir);
+        const key = n + '|' + mod + '|' + arama; if (key === this.modKey) return; this.modKey = key;
+        e.innerHTML = this.MODLAR.map(m => { const ok = m[0] === 'v2' ? n <= 2 : m[0] === 'v3' ? true : n === 2;
+            return '<button class="lb-mod' + (m[0] === mod ? ' aktif' : '') + '" ' + ((ok && !arama) ? '' : 'disabled') + ' onclick="LOBI.modSec(\'' + m[0] + '\')">' + m[1] + '</button>'; }).join('');
+    },
     eylemCiz() {
         const e = this.$('lbEylem'); if (!e) return; const d = this.d;
-        const key = d ? d.uyeler.length + '|' + d.benLider : 'x'; if (key === this.eylemKey) return; this.eylemKey = key;
-        const iki = !!(d && d.uyeler.length === 2); let h = '';
-        if (iki && d.benLider) h = '<button class="lb-basla" onclick="LOBI.baslatEmir(\'v2\')">⚔ MAÇA BAŞLA<small>2v2 • rakip takım bulunamazsa 2 bot gelir</small></button>';
-        else h = '<button class="lb-basla" disabled>' + (iki ? 'LİDER BAŞLATACAK' : 'MAÇA BAŞLA') + '<small>' + (iki ? 'Lider maçı başlatınca otomatik bağlanırsın' : 'Başlamak için lobiye bir oyuncu davet et') + '</small></button>';
+        const n = d ? d.uyeler.length : 1, ben = d ? d.uyeler.find(x => x.ben) : null, hz = d ? d.uyeler.filter(x => x.hz).length : 0, benHz = !!(ben && ben.hz), arama = !!(d && d.emir);
+        const mod = d ? d.mod : this.modYerel, ad = mod === 'v3' ? '3v3' : mod === 'ozel' ? '1v1 özel' : '2v2';
+        const key = [n, hz, benHz, arama, mod].join('|'); if (key === this.eylemKey) return; this.eylemKey = key;
+        let h;
+        if (arama) h = '<button class="lb-basla ara" onclick="LOBI.hazirYap(false)">ARAMAYI İPTAL ET<small>' + ad + ' • rakip aranıyor…</small></button>';
+        else if (benHz) h = '<button class="lb-basla bekle" onclick="LOBI.hazirYap(false)">HAZIRSIN ✔<small>Diğerleri bekleniyor (' + hz + '/' + n + ') • iptal için dokun</small></button>';
+        else h = '<button class="lb-basla hazir" onclick="LOBI.hazirYap(true)">HAZIR<small>' + ad + ' • ' + (n > 1 ? 'herkes hazır olunca arama otomatik başlar' : 'rakip/takım bulunamazsa botlar katılır') + '</small></button>';
         if (d) h += '<button class="kl-btn k lb-ayril" onclick="LOBI.ayril()">LOBİDEN AYRIL</button>';
         e.innerHTML = h;
     },
@@ -4832,7 +4880,7 @@ const LOBI = {
         const L = this.$('lbOyuncular'); if (!L) return;
         if (!r.ok) { if (!sessiz) L.innerHTML = '<div class="kp-bos">Liste yüklenemedi.</div>'; return; }
         if (!r.d.liste.length) { L.innerHTML = '<div class="kp-bos">' + (q ? 'Oyuncu bulunamadı.' : 'Şu an çevrimiçi başka oyuncu yok.<br>Üstteki kutudan ada göre arayabilirsin.') + '</div>'; return; }
-        const yetkili = !this.d || this.d.benLider, dolu = !!(this.d && this.d.uyeler.length >= 2);
+        const yetkili = !this.d || this.d.benLider, dolu = !!(this.d && this.d.uyeler.length >= 3);
         L.innerHTML = r.d.liste.map(u => {
             const gor = (this.gonderildi[u.ad.toLowerCase()] || 0) > Date.now() - 120000;
             const dis = !u.cevrimici || u.ayni || u.dolu || !yetkili || dolu || gor;
@@ -4859,23 +4907,37 @@ const LOBI = {
     }
 };
 
-/* ---------- 2v2 ONLINE (Render maç sunucusu, 4 oyuncu) ---------- */
-const V2_X = [130, 270];
+/* ---------- TAKIM MODLARI: 2v2 / 3v3 ONLINE (Render maç sunucusu) ---------- */
+// Saha büyütme katsayısı: render-server.js'deki ZOOM ile AYNI olmalı. Büyük saha "dünya" birimleriyle hesaplanır, ekrana 1/f küçültülerek çizilir
+// (oyuncu diskleri ve top aynı boyutta kalır, saha göreli olarak büyür).
+const TAKIM_ZOOM = { 2: 1.3, 3: 1.6 };
+const TK_KUPA = { v2: [15, 3], v3: [12, 3] };      // [kazanç, kayıp]  (hf-server.js'deki TK ile aynı)
+function takimGeo(T) {
+    const f = TAKIM_ZOOM[T] || 1, w = 320 * f, h = 530 * f, cx = 40 + w / 2;
+    return { f: f, T: T, sol: 40, ust: 35, w: w, h: h, sag: 40 + w, alt: 35 + h, mid: 35 + h / 2, cx: cx, kSol: cx - 70 * f, kSag: cx + 70 * f, kDer: 24 * f };
+}
+function takimBaslangic(G, T, renk, slot) { return { x: G.sol + G.w * (slot + 1) / (T + 1), y: renk === 'mavi' ? G.alt - 85 * G.f : G.ust + 85 * G.f }; }
 const V2 = {
     aktif: false, oturum: false, basladi: false, bitirildi: false, bot: false, t0: 0, aramaI: 0, renk: 'mavi', slot: 0, mid: '', srv: '', tk: '', mws: null, hws: null, lb: '',
-    dost: null, rakipler: [], snaps: [], olaylar: [], off: 0, offVar: false, jit: 0, gecikme: 100, sayac: 0, sonVuran: 'mavi', oncekiGol: false,
+    mod: 'v2', T: 2, G: takimGeo(2),
+    tp: [], rakipler: [], snaps: [], olaylar: [], off: 0, offVar: false, jit: 0, gecikme: 80, sayac: 0, sonVuran: 'mavi', oncekiGol: false,
     hx: 200, hy: 480, px: 200, py: 480, ppx: 200, ppy: 480, hSon: 0, gx: -1, gy: -1, seq: 0, mSon: 0, mAcc: 0, sonVeri: 0, sonEmoji: 0,
     girisTimer: 0, bekciTimer: 0, p2pT: 0, yenidenT: 0, hKeep: 0, hDeneme: 0, mTekrar: 0, p2pHata: 0, pid: 0, denemeId: 0,
-    diskler: { mavi: [{ x: 130, y: 480, r: 24 }, { x: 270, y: 480, r: 24 }], kirmizi: [{ x: 130, y: 120, r: 24 }, { x: 270, y: 120, r: 24 }] },
+    diskler: { mavi: [], kirmizi: [] },
     bekliyor() { return this.oturum && !this.aktif; },
-    sifirla() {
-        this.aktif = false; this.basladi = false; this.bitirildi = false; this.snaps = []; this.olaylar = []; this.offVar = false; this.off = 0; this.jit = 0; this.gecikme = 100;
-        this.sayac = 180; this.sonVuran = 'mavi'; this.oncekiGol = false; this.seq = 0; this.gx = -1; this.gy = -1; this.p2pHata = 0; this.hDeneme = 0; this.dost = null; this.rakipler = [];
+    modAyarla(mod) {
+        this.mod = mod === 'v3' ? 'v3' : 'v2'; this.T = this.mod === 'v3' ? 3 : 2; this.G = takimGeo(this.T);
+        this.diskler = { mavi: [], kirmizi: [] };
+        for (const renk of ['mavi', 'kirmizi']) for (let s = 0; s < this.T; s++) { const p = takimBaslangic(this.G, this.T, renk, s); this.diskler[renk].push({ x: p.x, y: p.y, r: 24 }); }
     },
-    ac(lb) {
+    sifirla() {
+        this.aktif = false; this.basladi = false; this.bitirildi = false; this.snaps = []; this.olaylar = []; this.offVar = false; this.off = 0; this.jit = 0; this.gecikme = 80;
+        this.sayac = 180; this.sonVuran = 'mavi'; this.oncekiGol = false; this.seq = 0; this.gx = -1; this.gy = -1; this.p2pHata = 0; this.hDeneme = 0; this.tp = []; this.rakipler = [];
+    },
+    ac(lb, mod) {
         sesMotorunuBaslat();
         if (!RANK.uid || this.oturum || ONL.aktif) return;
-        this.sifirla(); this.oturum = true; this.lb = lb || '';
+        this.sifirla(); this.modAyarla(mod); this.oturum = true; this.lb = lb || '';
         onlineEl('mod-secim-ekrani').style.display = 'none'; onlineEl('lobi-ekrani').style.display = 'flex';
         this.baglan();
     },
@@ -4891,18 +4953,19 @@ const V2 = {
         ws.onopen = () => {
             acildi = true; clearTimeout(zt); if (this.hws !== ws) return;
             clearInterval(this.hKeep); this.hKeep = setInterval(() => { try { if (ws.readyState === 1) ws.send('{"t":"p"}'); } catch (_) {} }, 15000);
-            bekleGoster(this.lb ? 'Rakip takım aranıyor…' : '2v2 takım arkadaşı ve rakipler aranıyor…', '');
+            const mt = this.T + 'v' + this.T;
+            bekleGoster(this.lb ? 'Rakip takım aranıyor…' : mt + ' takım arkadaşı ve rakipler aranıyor…', '');
             this.t0 = Date.now(); clearInterval(this.aramaI);
             this.aramaI = setInterval(() => {
                 if (!this.oturum || this.aktif || this.mws) { clearInterval(this.aramaI); return; }
                 const k = onlineEl('online-bekleme'); if (k.classList.contains('hata')) return;
                 onlineEl('onlineAlt').innerText = 'Rakip aranıyor… ' + Math.floor((Date.now() - this.t0) / 1000) + ' sn' + ' • 15 sn içinde bulunamazsa botlar katılır';
             }, 500);
-            ws.send(JSON.stringify({ t: 'q', tok: API.token, mod: 'v2', lb: this.lb || undefined, iz: aktifTopIzi, sv: aktifSevinc, ge: aktifGolEmoji, ko: aktifKostum }));
+            ws.send(JSON.stringify({ t: 'q', tok: API.token, mod: this.mod, lb: this.lb || undefined, iz: aktifTopIzi, sv: aktifSevinc, ge: aktifGolEmoji, ko: aktifKostum }));
         };
         ws.onmessage = (e) => {
             if (this.hws !== ws) return; let m; try { m = JSON.parse(e.data); } catch (_) { return; }
-            if (m.t === 'm' && m.mod === 'v2') this.eslesti(m);
+            if (m.t === 'm' && (m.mod === 'v2' || m.mod === 'v3')) this.eslesti(m);
             else if (m.t === 'kick') zorlaCikis(m.neden, '');
             else if (m.t === 'iptal') { this.iptal(true); toast('Takım araması iptal edildi.'); }
         };
@@ -4925,15 +4988,21 @@ const V2 = {
         const pf = r => ({ ad: String((r && r.ad) || 'OYUNCU').slice(0, 20), iz: gecerliId(IZ, r && r.iz, 'kuyrukluyildiz'), sv: gecerliId(SEV, r && r.sv, 'sv_halka'),
             ge: gecerliId(GOLEMOJI, r && r.ge, 'gl_gol'), ko: kostumGecerli(r && r.ko), nr: nickRenkGecerli(r && r.nr) ? r.nr : '' });
         clearInterval(this.aramaI); this.bot = !!m.bot;
-        this.renk = m.renk === 'kirmizi' ? 'kirmizi' : 'mavi'; this.slot = m.slot ? 1 : 0;
+        this.modAyarla(m.mod);
+        this.renk = m.renk === 'kirmizi' ? 'kirmizi' : 'mavi'; this.slot = Math.max(0, Math.min(this.T - 1, m.slot | 0));
         this.mid = String(m.id || ''); this.srv = String(m.srv || ''); this.tk = String(m.tk || '');
-        this.dost = pf(m.tm); this.rakipler = (m.rk || []).slice(0, 2).map(pf);
+        const doldur = (a) => { const l = (a || []).slice(0, this.T).map(pf); while (l.length < this.T) l.push(pf(null)); return l; };
+        this.tp = doldur(m.tp); this.rakipler = doldur(m.rk);
         this.snaps = []; this.olaylar = []; this.offVar = false; this.sayac = 180; this.oncekiGol = false; this.sonVuran = 'mavi';
-        this.hx = V2_X[this.slot]; this.hy = this.renk === 'mavi' ? 480 : 120; this.px = this.ppx = this.hx; this.py = this.ppy = this.hy; this.gx = -1; this.seq = 0;
+        this.baslangicaDon();
         this.sonVeri = performance.now(); this.mTekrar = 0;
         bekleGoster(T('online_p2p'), '');
         const pid = ++this.pid; this.mBaglan(pid);
         clearTimeout(this.p2pT); this.p2pT = setTimeout(() => { if (pid === this.pid && !this.basladi) this.baglantiKoptu(); }, 70000);
+    },
+    baslangicaDon() {                                   // kendi diskimi başlangıç noktasına koy
+        const p = takimBaslangic(this.G, this.T, this.renk, this.slot);
+        this.hx = p.x; this.hy = p.y; this.px = this.ppx = p.x; this.py = this.ppy = p.y; this.gx = -1; this.seq = 0;
     },
     mBaglan(pid) {
         if (pid !== this.pid || !this.oturum || this.bitirildi) return;
@@ -4979,13 +5048,14 @@ const V2 = {
         this.kapat(); onlineEl('oyun-ekrani').style.display = 'none'; onlineEl('lobi-ekrani').style.display = 'flex'; toast('Maç iptal edildi (bir oyuncu ayrıldı).');
     },
     snapEkle(d) {
-        if (typeof d.t !== 'number' || !Array.isArray(d.b) || d.m.length < 4 || d.r.length < 4) return;
+        const n2 = this.T * 2;
+        if (typeof d.t !== 'number' || !Array.isArray(d.b) || !Array.isArray(d.m) || !Array.isArray(d.r) || d.m.length < n2 || d.r.length < n2) return;
         const son = this.snaps[this.snaps.length - 1]; if (son && d.t <= son.t) return;
         const now = performance.now(), fark = now - d.t;
         if (!this.offVar || fark < this.off) { this.off = fark; this.offVar = true; } else this.off += (fark - this.off) * 0.01;
         this.jit += ((fark - this.off) - this.jit) * 0.05;
-        this.gecikme = Math.min(170, Math.max(75, 40 + this.jit * 2.5));
-        this.snaps.push(d); if (this.snaps.length > 60) this.snaps.shift();
+        this.gecikme = Math.min(150, Math.max(55, 30 + this.jit * 2.5));    // uyarlanır ara değerleme gecikmesi: hat iyiyse daha az gecikme
+        this.snaps.push(d); if (this.snaps.length > 40) this.snaps.shift();
     },
     basla() {
         if (this.aktif) return;
@@ -4994,7 +5064,7 @@ const V2 = {
         const now = performance.now(); this.mSon = now; this.mAcc = 0; this.sonVeri = now; this.hSon = now;
         bekleGizle(); onlineEl('online-sonuc').style.display = 'none'; onlineEl('lobi-ekrani').style.display = 'none'; onlineEl('mod-secim-ekrani').style.display = 'none'; onlineEl('oyun-ekrani').style.display = 'flex';
         oyuncuSkor = 0; rakipSkor = 0; onlineEl('botBaslik').innerText = this.bot ? 'BOT TAKIMI' : 'RAKİP TAKIM'; skorGorunumu(); this.skorYaz();
-        ustFileSallanma = 0; altFileSallanma = 0; golDurumu.aktif = false; golDurumu.zamanlayici = 0; topNesne.x = 200; topNesne.y = 300; topNesne.vx = topNesne.vy = 0; topNesne.iz = []; topNesne.aci = 0;
+        ustFileSallanma = 0; altFileSallanma = 0; golDurumu.aktif = false; golDurumu.zamanlayici = 0; topNesne.x = this.G.cx; topNesne.y = this.G.mid; topNesne.vx = topNesne.vy = 0; topNesne.iz = []; topNesne.aci = 0;
         dokunmaAktif = false; oyunAktif = true; sonZaman = now; frameSayaci = 0; sonFizikZamani = 0; fizikBirikim = 0; oncekiPoz = [];
         emojiBalonlar = []; botEmojiPlan = null; emojiTepsiKapat(); tamEkran(); tribunSifirla(); pingSifirla();
         clearInterval(this.girisTimer); clearInterval(this.bekciTimer);
@@ -5010,10 +5080,13 @@ const V2 = {
         if (performance.now() - this.sonVeri > 8000) this.bitir(null, 'koptu');
     },
     skorYaz() { const m = this.renk === 'mavi'; onlineEl('oyuncuSkor').innerText = m ? oyuncuSkor : rakipSkor; onlineEl('rakipSkor').innerText = m ? rakipSkor : oyuncuSkor; },
+    // ekrandaki dokunma noktası (400x600) -> dünya koordinatı (kendi yarı sahamla sınırlı; kırmızıysa sunucu bakışına çevrilir)
     hedef(x, y) {
-        const r = 24, cx = Math.max(SAHA.sol + r, Math.min(SAHA.sag - r, x)), cy = Math.max(300 + r, Math.min(SAHA.alt - r, y));
-        const w = donukMu() ? { x: CW - cx, y: CH - cy } : { x: cx, y: cy };
-        this.hx = Math.round(w.x); this.hy = Math.round(w.y); this.hSon = performance.now();
+        const G = this.G, r = 24;
+        let wx = G.sol + (x - SAHA.sol) * G.f, wy = G.ust + (y - SAHA.ust) * G.f;
+        wx = Math.max(G.sol + r, Math.min(G.sag - r, wx)); wy = Math.max(G.mid + r, Math.min(G.alt - r, wy));
+        if (donukMu()) { wx = G.sol + G.sag - wx; wy = G.ust + G.alt - wy; }
+        this.hx = Math.round(wx); this.hy = Math.round(wy); this.hSon = performance.now();
     },
     girisGonder() {
         if (!this.aktif || this.bitirildi) return;
@@ -5035,13 +5108,23 @@ const V2 = {
     tick() {
         fileZaman += 0.25; ustFileSallanma *= 0.94; altFileSallanma *= 0.94;
         if (golDurumu.aktif) return;
+        const G = this.G, r = 24;
         this.ppx = this.px; this.ppy = this.py;
         this.px += (this.hx - this.px) * 0.35; this.py += (this.hy - this.py) * 0.35;
+        // takım arkadaşlarının üstüne çıkma (sunucudaki kuralın aynısı; tahmin sunucuyla uyumlu kalır)
+        const D = this.diskler[this.renk];
+        for (let i = 0; i < D.length; i++) {
+            if (i === this.slot) continue;
+            const dx = this.px - D[i].x, dy = this.py - D[i].y, m = Math.hypot(dx, dy), min = r * 2;
+            if (m < min) { if (m > 0.001) { const ov = min - m; this.px += dx / m * ov; this.py += dy / m * ov; } else this.px += 1; }
+        }
+        this.px = Math.max(G.sol + r, Math.min(G.sag - r, this.px));
+        this.py = this.renk === 'mavi' ? Math.max(G.mid + r, Math.min(G.alt - r, this.py)) : Math.max(G.ust + r, Math.min(G.mid - r, this.py));
         if (Math.hypot(topNesne.vx, topNesne.vy) > 3) { topNesne.iz.push({ x: topNesne.x, y: topNesne.y, s: Math.random() }); if (topNesne.iz.length > 16) topNesne.iz.shift(); }
         else if (topNesne.iz.length > 0) topNesne.iz.shift();
     },
     kare() {
-        const now = performance.now();
+        const now = performance.now(), n = this.T;
         this.mAcc += Math.min(now - this.mSon, 100); this.mSon = now;
         while (this.mAcc >= FIZIK_ADIM) { this.mAcc -= FIZIK_ADIM; this.tick(); }
         const N = this.snaps[this.snaps.length - 1], D = this.diskler, mk = this.renk;
@@ -5057,16 +5140,14 @@ const V2 = {
             topNesne.x = L(a.b[0], P.b[0], sic); topNesne.y = L(a.b[1], P.b[1], sic); topNesne.vx = P.b[2]; topNesne.vy = P.b[3]; topNesne.aci = L(a.b[4], P.b[4], false);
             for (const tk of ['mavi', 'kirmizi']) {
                 const ar = tk === 'mavi' ? 'm' : 'r';
-                for (let i = 0; i < 2; i++) {
+                for (let i = 0; i < n; i++) {
                     const d = D[tk][i], ax = a[ar][i * 2], ay = a[ar][i * 2 + 1], px = P[ar][i * 2], py = P[ar][i * 2 + 1], big = Math.hypot(px - ax, py - ay) > 100;
                     d.x = L(ax, px, big); d.y = L(ay, py, big);
                 }
             }
             const cur = u < 0.5 ? a : P;
             golDurumu.aktif = cur.g > 0; golDurumu.kim = cur.g === 1 ? 'mavi' : 'kirmizi'; golDurumu.zamanlayici = cur.z; this.sonVuran = cur.v ? 'kirmizi' : 'mavi'; this.sayac = cur.c;
-            if (this.oncekiGol && !golDurumu.aktif) {
-                topNesne.iz = []; this.hx = V2_X[this.slot]; this.hy = mk === 'mavi' ? 480 : 120; this.gx = -1; this.px = this.ppx = this.hx; this.py = this.ppy = this.hy;
-            }
+            if (this.oncekiGol && !golDurumu.aktif) { topNesne.iz = []; this.baslangicaDon(); }
             this.oncekiGol = golDurumu.aktif;
             // kendi diskim: yerel tahmin (gecikmesiz), sunucuyla yumuşak uzlaşma
             const sn = N[mk === 'mavi' ? 'm' : 'r'], sx = sn[this.slot * 2], sy = sn[this.slot * 2 + 1], kd = D[mk][this.slot];
@@ -5086,14 +5167,16 @@ const V2 = {
     rakipDisk() { return this.diskler[this.renk === 'mavi' ? 'kirmizi' : 'mavi'][0]; },
     isim(x, y, ad) {
         if (!ad) return;
-        ctx.save(); ctx.translate(x, y); if (donukMu()) ctx.rotate(Math.PI);
+        const f = this.G.f;
+        ctx.save(); ctx.translate(x, y); if (donukMu()) ctx.rotate(Math.PI); ctx.scale(f, f);     // yazı boyu ekranda sabit kalsın
         ctx.font = "800 11px 'Segoe UI', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.fillStyle = '#fff';
-        ctx.strokeText(ad, 0, -28); ctx.fillText(ad, 0, -28); ctx.restore();
+        const oy = -(24 / f + 4);
+        ctx.strokeText(ad, 0, oy); ctx.fillText(ad, 0, oy); ctx.restore();
     },
     diskleriCiz() {
-        const D = this.diskler, mk = this.renk, rk = mk === 'mavi' ? 'kirmizi' : 'mavi';
-        for (let i = 0; i < 2; i++) { const d = D[rk][i], p = this.rakipler[i] || {}; diskCiz(d.x, d.y, 24, rk, p.ko); this.isim(d.x, d.y, p.ad); }
-        for (let i = 0; i < 2; i++) { const d = D[mk][i], ben = i === this.slot, p = ben ? { ad: 'SEN', ko: aktifKostum } : (this.dost || {}); diskCiz(d.x, d.y, 24, mk, p.ko); this.isim(d.x, d.y, p.ad); }
+        const D = this.diskler, mk = this.renk, rk = mk === 'mavi' ? 'kirmizi' : 'mavi', n = this.T;
+        for (let i = 0; i < n; i++) { const d = D[rk][i], p = this.rakipler[i] || {}; diskCiz(d.x, d.y, 24, rk, p.ko); this.isim(d.x, d.y, p.ad); }
+        for (let i = 0; i < n; i++) { const d = D[mk][i], ben = i === this.slot, p = ben ? { ad: 'SEN', ko: aktifKostum } : (this.tp[i] || {}); diskCiz(d.x, d.y, 24, mk, p.ko); this.isim(d.x, d.y, p.ad); }
     },
     bitir(kaz, neden, d) {
         if (this.bitirildi) return; this.bitirildi = true;
@@ -5104,16 +5187,15 @@ const V2 = {
         if (neden === 'koptu') { b.innerText = T('online_koptu'); b.className = 'online-sonuc-baslik'; }
         else { b.innerText = kazandi ? T('online_kazandin') : T('online_kaybettin'); b.className = 'online-sonuc-baslik ' + (kazandi ? 'kazandi' : 'kaybetti'); }
         onlineEl('onlineSonucSkor').innerText = ben + ' : ' + rk;
-        onlineEl('onlineSonucAlt').innerText = neden === 'ayrildi' ? T('online_ayrildi') : '2v2';
+        onlineEl('onlineSonucAlt').innerText = neden === 'ayrildi' ? T('online_ayrildi') : this.T + 'v' + this.T;
         const el = onlineEl('kupaSonuc'); el.innerHTML = '';
         if (neden !== 'koptu') this.sonuc(kazandi, el);
         onlineEl('online-sonuc').style.display = 'flex';
     },
     sonuc(kazandi, el) {
-        if (this.bot) { el.className = 'kupa-sonuc'; el.innerHTML = '<small>🤖 Bot maçı: kupa / ödül yok</small>'; return; }
-        const p = RANK.p, d = kazandi ? 15 : -Math.min(3, p.kupa);
+        const p = RANK.p, c = TK_KUPA[this.mod], d = kazandi ? c[0] : -Math.min(c[1], p.kupa);
         p.kupa += d; p.mac++; if (kazandi) p.gal++; else p.mag++; RANK.arayuz();
-        el.className = 'kupa-sonuc' + (kazandi ? '' : ' kayip'); el.innerHTML = '🏆 ' + (d > 0 ? '+' : '') + d + '<small>2v2 • ' + nf(p.kupa) + ' kupa</small>';
+        el.className = 'kupa-sonuc' + (kazandi ? '' : ' kayip'); el.innerHTML = '🏆 ' + (d > 0 ? '+' : '') + d + '<small>' + this.T + 'v' + this.T + (this.bot ? ' • bot rakipli' : '') + ' • ' + nf(p.kupa) + ' kupa</small>';
         (async () => {
             for (const w of [1200, 3000, 6000, 12000]) {
                 await new Promise(r => setTimeout(r, w)); if (!RANK.uid) return;
@@ -5133,16 +5215,15 @@ const V2 = {
         if (lb && !sessiz) LOBI.emirIptal();
     },
     tekrar() {
-        const lb = this.lb; this.kapat();
+        const lb = this.lb, mod = this.mod; this.kapat();
         onlineEl('oyun-ekrani').style.display = 'none'; onlineEl('lobi-ekrani').style.display = 'flex';
-        if (lb) sekmeGecis('arkadas', document.querySelectorAll('.nav-item')[3]); else this.ac('');
+        if (lb) sekmeGecis('arkadas', document.querySelectorAll('.nav-item')[3]); else this.ac('', mod);
     }
 };
 
 /* ---------- ÇEKİL (onaylı) ---------- */
 function cekilMetni() {
-    if (V2.oturum && V2.bot) return 'Bot maçı burada sona erer; kupa ve ödül işlenmez.';
-    if (V2.oturum) return 'Takım arkadaşın maça sensiz devam eder. Emin misin?';
+    if (V2.oturum) return 'Takımın maça sensiz devam eder. Emin misin?';
     if (ONL.aktif && ONL.ozel) return 'Özel maçtan çekilirsen rakibin kazanır (kupa etkilenmez).';
     if (ONL.aktif) return 'Çekilirsen maç yenilgi sayılır ve kupa kaybedersin.';
     if (RANK.botMac) return 'Çekilirsen bu maç yenilgi sayılır ve kupa kaybedersin.';
