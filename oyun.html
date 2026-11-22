@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -885,6 +885,28 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
 #davet-banner { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 450; display: none; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 16px; background: rgba(14,20,34,.96); border: 1px solid rgba(30,144,255,.6); box-shadow: 0 8px 30px rgba(0,0,0,.7); font-size: 13px; font-weight: 800; animation: modalGel .25s ease; }
 #davet-banner canvas { width: 34px; height: 34px; flex: none; }
 #davet-banner .lb-b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== PROFESYONEL LOBİ ===== */
+.lb-ust { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding: 2px 4px; }
+.lb-ust b { font-size: 17px; font-weight: 900; letter-spacing: 2px; display: block; }
+.lb-ust small { font-size: 11px; color: #a4b0be; }
+.lb-chip { font-size: 12px; font-weight: 900; padding: 5px 12px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: #a4b0be; letter-spacing: 1px; }
+.lb-chip.tam { background: rgba(46,213,115,.15); border-color: rgba(46,213,115,.55); color: #2ed573; }
+.lb-slot { background: linear-gradient(165deg, rgba(40,54,78,.75), rgba(16,22,34,.9)); box-shadow: 0 8px 24px rgba(0,0,0,.35); padding: 14px 8px 12px; }
+.lb-slot.ben { background: linear-gradient(165deg, rgba(0,210,211,.2), rgba(16,22,34,.92)); box-shadow: 0 0 22px rgba(0,210,211,.18); }
+.lb-rol { font-size: 9px; font-weight: 900; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,.08); color: #a4b0be; }
+.lb-rol.lider { background: rgba(255,213,74,.15); color: #ffd54a; }
+.lb-basla { width: 100%; border: 0; border-radius: 16px; padding: 14px 10px; cursor: pointer; font-family: inherit; font-size: 17px; font-weight: 900; letter-spacing: 1.5px; color: #fff;
+    background: linear-gradient(135deg, #2ed573, #14b85a); box-shadow: 0 8px 24px rgba(46,213,115,.35); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.lb-basla small { font-size: 10px; font-weight: 700; letter-spacing: .5px; opacity: .85; }
+.lb-basla:active { transform: scale(.98); }
+.lb-basla:disabled { background: rgba(255,255,255,.07); box-shadow: none; color: #7f8c9b; cursor: default; }
+.lb-ayril { width: 100%; flex: none !important; min-height: 32px !important; background: rgba(255,71,87,.14) !important; color: #ff6b81 !important; border: 1px solid rgba(255,71,87,.35) !important; }
+
+#cekil-modal { display: none; position: absolute; inset: 0; z-index: 520; padding: 24px; background: rgba(4,6,9,.82); backdrop-filter: blur(6px); align-items: center; justify-content: center; }
+#cekil-modal .modal-panel { max-width: 420px; }
+.cikis-btn { white-space: nowrap; }
+.lb-slot .lb-ad, .lb-slot .lb-ad span { color: #fff; opacity: 1; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -961,7 +983,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
             </button>
             <button class="oyna-btn" data-i18n="oyna" onclick="macAra()">MAÇA BAŞLA</button>
             <div class="hizli-butonlar">
-                <button class="yan-btn" onclick="sekmeGecis('arkadas', document.querySelectorAll('.nav-item')[3])" data-i18n="yan1">Arkadaşla 1v1</button>
+                <button class="yan-btn" onclick="sekmeGecis('arkadas', document.querySelectorAll('.nav-item')[3])">👥 Lobi</button>
                 <button class="yan-btn" onclick="sekmeGecis('gorev', document.querySelectorAll('.nav-item')[4])" data-i18n="yan2">Görevler</button>
             </div>
         </div>
@@ -980,7 +1002,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
             </div>
             <div class="nav-item" onclick="sekmeGecis('arkadas', this)">
                 <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span data-i18n="n_arkadas">Arkadaş</span>
+                <span>Lobi</span>
             </div>
             <div class="nav-item" onclick="sekmeGecis('gorev', this)">
                 <svg class="ikon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -1053,7 +1075,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
             </div>
             <button class="emoji-btn" onclick="emojiTepsiToggle()" aria-label="Emoji"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 14.2c1 1.6 2.4 2.3 4 2.3s3-.7 4-2.3"/><circle cx="9" cy="9.5" r=".9" fill="currentColor"/><circle cx="15" cy="9.5" r=".9" fill="currentColor"/></svg></button>
             <button class="emoji-btn" id="tamBtn" onclick="tamEkranToggle()" aria-label="Fullscreen" style="color:#fff;font-size:18px">⛶</button>
-            <button class="cikis-btn" onclick="lobiyeDon()" data-i18n="kapat">Kapat</button>
+            <button class="cikis-btn" onclick="cekilSor()">🏳 Çekil</button>
         </div>
         <div id="saha-kap"><canvas id="saha" width="400" height="600"></canvas></div>
         <div id="hud"><span class="hud-k" id="hudFps">-- FPS</span><span class="hud-k" id="hudPing" style="display:none">-- ms</span></div>
@@ -1140,6 +1162,18 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
             <div class="modal-butonlar">
                 <button class="modal-vazgec" onclick="hesapSilModalKapat()" data-i18n="vazgec">Vazgeç</button>
                 <button class="modal-onay" id="hesapSilOnayBtn" onclick="hesapSilOnayla()" data-i18n="evet_sil">Evet, Sil</button>
+            </div>
+        </div>
+    </div>
+    <!-- ÇEKİL ONAY PANELİ -->
+    <div id="cekil-modal">
+        <div class="modal-panel">
+            <div class="modal-ikon">🏳</div>
+            <div class="modal-baslik">Maçtan çekilmek istiyor musun?</div>
+            <div class="modal-metin" id="cekilMetin"></div>
+            <div class="modal-butonlar">
+                <button class="modal-vazgec" onclick="cekilKapat()">Vazgeç</button>
+                <button class="modal-onay" onclick="cekilOnayla()">Evet, Çekil</button>
             </div>
         </div>
     </div>
@@ -2947,12 +2981,12 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         sezon: ['SEZON 1 • 1v1 ARENA','SEASON 1 • 1v1 ARENA','SAISON 1 • 1v1-ARENA','TEMPORADA 1 • ARENA 1v1','SAISON 1 • ARÈNE 1v1','СЕЗОН 1 • АРЕНА 1v1','الموسم 1 • ساحة 1v1','TEMPORADA 1 • ARENA 1v1'],
         ekip: ['Top: {0} • İz: {1}','Ball: {0} • Trail: {1}','Ball: {0} • Spur: {1}','Balón: {0} • Estela: {1}','Balle : {0} • Traînée : {1}','Мяч: {0} • След: {1}','الكرة: {0} • الأثر: {1}','Bola: {0} • Rastro: {1}'],
         oyna: ['MAÇA BAŞLA','START MATCH','MATCH STARTEN','JUGAR PARTIDO','LANCER LE MATCH','НАЧАТЬ МАТЧ','ابدأ المباراة','INICIAR PARTIDA'],
-        yan1: ['Arkadaşla 1v1','1v1 with Friend','1v1 mit Freund','1v1 con amigo','1v1 entre amis','1v1 с другом','1v1 مع صديق','1v1 com amigo'],
+        yan1: ['👥 Lobi','👥 Lobby','👥 Lobby','👥 Lobby','👥 Salon','👥 Лобби','👥 اللوبي','👥 Lobby'],
         yan2: ['Görevler','Quests','Aufgaben','Misiones','Quêtes','Задания','المهام','Missões'],
         n_magaza: ['Mağaza','Shop','Shop','Tienda','Boutique','Магазин','المتجر','Loja'],
         n_klan: ['Klan','Clan','Clan','Clan','Clan','Клан','العشيرة','Clã'],
         n_arena: ['Arena','Arena','Arena','Arena','Arène','Арена','الساحة','Arena'],
-        n_arkadas: ['Arkadaş','Friends','Freunde','Amigos','Amis','Друзья','الأصدقاء','Amigos'],
+        n_arkadas: ['Lobi','Lobby','Lobby','Lobby','Salon','Лобби','اللوبي','Lobby'],
         n_gorev: ['Görevler','Quests','Aufgaben','Misiones','Quêtes','Задания','المهام','Missões'],
         gor_t: ['GÖREVLER','QUESTS','AUFGABEN','MISIONES','QUÊTES','ЗАДАНИЯ','المهام','MISSÕES'],
         gor_not: ['Görevler her gün yenilenir','Quests reset every day','Aufgaben werden täglich erneuert','Las misiones se renuevan cada día','Les quêtes se renouvellent chaque jour','Задания обновляются каждый день','تتجدد المهام يوميًا','As missões renovam todos os dias'],
@@ -2995,7 +3029,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         mod_zor: ['Usta oyuncular için acımasız yapay zeka.','Ruthless AI for expert players.','Gnadenlose KI für Profis.','IA implacable para jugadores expertos.','IA impitoyable pour les experts.','Безжалостный ИИ для опытных игроков.','ذكاء اصطناعي لا يرحم للاعبين المحترفين.','IA implacável para jogadores experts.'],
         klan_t: ['KLAN SİSTEMİ','CLAN SYSTEM','CLAN-SYSTEM','SISTEMA DE CLANES','SYSTÈME DE CLANS','СИСТЕМА КЛАНОВ','نظام العشائر','SISTEMA DE CLÃS'],
         klan_d: ['Klanını kur ve liderlik tablosuna yüksel.','Create your clan and climb the leaderboard.','Gründe deinen Clan und steige in der Rangliste auf.','Crea tu clan y sube en la clasificación.','Crée ton clan et grimpe au classement.','Создайте клан и поднимитесь в таблице лидеров.','أنشئ عشيرتك وتصدّر لوحة المتصدرين.','Crie seu clã e suba no ranking.'],
-        ark_t: ['ARKADAŞLAR & 1v1','FRIENDS & 1v1','FREUNDE & 1v1','AMIGOS Y 1v1','AMIS & 1v1','ДРУЗЬЯ И 1v1','الأصدقاء و 1v1','AMIGOS E 1v1'],
+        ark_t: ['LOBİ','LOBBY','LOBBY','LOBBY','SALON','ЛОББИ','اللوبي','LOBBY'],
         ark_d: ['Özel oda ile maç atma özelliği yakında!','Private room matches coming soon!','Private Räume bald verfügbar!','¡Partidas en sala privada próximamente!','Les salons privés arrivent bientôt !','Матчи в приватной комнате скоро появятся!','المباريات في غرف خاصة قريبًا!','Partidas em sala privada em breve!'],
         soh_t: ['TR GENEL SOHBET','TR GENERAL CHAT','TR-ALLGEMEINER CHAT','CHAT GENERAL TR','CHAT GÉNÉRAL TR','ОБЩИЙ ЧАТ TR','الدردشة العامة TR','CHAT GERAL TR'],
         soh_d: ['Anlık sohbet alanı hazırlanıyor.','The live chat area is being prepared.','Der Live-Chat wird vorbereitet.','Estamos preparando el chat en vivo.','Le chat en direct est en préparation.','Онлайн-чат скоро будет готов.','منطقة الدردشة المباشرة قيد التجهيز.','O chat ao vivo está sendo preparado.'],
@@ -4108,9 +4142,9 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
         RANK.aramaI = setInterval(() => {
             if (ONL.aktif) { clearInterval(RANK.aramaI); return; }
             const bk = onlineEl('online-bekleme');
-            if (!bk.classList.contains('hata')) onlineEl('onlineAlt').innerText = 'Rakip aranıyor… ' + Math.max(0, 20 - Math.floor((Date.now() - t0) / 1000)) + ' sn';
+            if (!bk.classList.contains('hata')) onlineEl('onlineAlt').innerText = 'Rakip aranıyor… ' + Math.max(0, 15 - Math.floor((Date.now() - t0) / 1000)) + ' sn • bulunamazsa bot gelir';
         }, 500);
-        RANK.aramaT = setTimeout(botaGec, 20000);
+        RANK.aramaT = setTimeout(botaGec, 15000);
     }
     function botaGec() {
         clearInterval(RANK.aramaI);
@@ -4725,7 +4759,7 @@ const LOBI = {
     ac() {
         this.acik = true; const k = this.$('lobi-orta');
         if (!RANK.uid) { k.innerHTML = '<div class="yakinda-karti"><h2>👥 LOBİ</h2><p style="color:#a4b0be;font-size:13px;margin-top:8px">Lobi için giriş yapmalısın.</p></div>'; return; }
-        k.innerHTML = '<div class="kl-kap"><div class="lb-kart" id="lbKart"></div><div class="lb-eylem" id="lbEylem"></div>' +
+        k.innerHTML = '<div class="kl-kap"><div class="lb-ust"><div><b>👥 LOBİ</b><small>2 kişilik takım • 2v2 maç</small></div><span class="lb-chip" id="lbChip">1/2</span></div><div class="lb-kart" id="lbKart"></div><div class="lb-eylem" id="lbEylem"></div>' +
             '<div class="magaza-ust-sekmeler"><button class="magaza-sekme" id="lbSkS" onclick="LOBI.sekmeSec(\'sohbet\')">💬 LOBİ SOHBET</button><button class="magaza-sekme" id="lbSkD" onclick="LOBI.sekmeSec(\'davet\')">➕ DAVET ET</button></div>' +
             '<div class="kl-kap" id="lbIcerik" style="flex:1"></div></div>';
         this.kartKey = this.eylemKey = ''; this.sekmeSec(this.sekme); this.ciz(); this.yokla();
@@ -4746,6 +4780,7 @@ const LOBI = {
     },
     ciz() {
         this.kartCiz(); this.eylemCiz();
+        const ch = this.$('lbChip'); if (ch) { const n = this.d ? this.d.uyeler.length : 1; ch.textContent = n === 2 ? 'HAZIR 2/2' : n + '/2'; ch.className = 'lb-chip' + (n === 2 ? ' tam' : ''); }
         if (this.sekme === 'sohbet') { if (this.resetMsj) { this.resetMsj = false; this.msjCiz(true); } else this.msjCiz(false); }
     },
     kartCiz() {
@@ -4756,7 +4791,7 @@ const LOBI = {
         for (let i = 0; i < 2; i++) {
             const u = uy[i];
             if (u) h += '<div class="lb-slot' + (u.ben ? ' ben' : '') + '"><canvas class="lb-ko" width="112" height="112" data-ko="' + esc(u.ko) + '"></canvas>' +
-                '<div class="lb-ad">' + (u.lider ? '👑 ' : '') + '<span' + nickStilAttr(u.nr) + '>' + esc(u.ad) + '</span></div><div class="lb-kupa">🏆 ' + nf(u.kupa) + '</div>' +
+                '<div class="lb-ad"><span' + nickStilAttr(u.nr) + '>' + esc(u.ad) + '</span></div><div class="lb-rol' + (u.lider || !d ? ' lider' : '') + '">' + (u.lider || !d ? '👑 LİDER' : 'ÜYE') + '</div><div class="lb-kupa">🏆 ' + nf(u.kupa) + '</div>' +
                 (d && d.benLider && !u.ben ? '<button class="kl-btn k" style="min-height:26px;padding:0 10px" onclick="LOBI.at(\'' + esc(u.ad) + '\')">AT</button>' : '') + '</div>';
             else h += '<div class="lb-slot bos" onclick="LOBI.sekmeSec(\'davet\')"><div class="lb-bosplus">+</div><div class="lb-ad">Oyuncu davet et</div></div>';
         }
@@ -4765,12 +4800,10 @@ const LOBI = {
     eylemCiz() {
         const e = this.$('lbEylem'); if (!e) return; const d = this.d;
         const key = d ? d.uyeler.length + '|' + d.benLider : 'x'; if (key === this.eylemKey) return; this.eylemKey = key;
-        let h = '';
-        if (d && d.uyeler.length === 2) {
-            if (d.benLider) h += '<button class="kl-btn" onclick="LOBI.baslatEmir(\'ozel\')">⚔ ARKADAŞLA 1v1</button><button class="kl-btn" onclick="LOBI.baslatEmir(\'v2\')">🤝 2v2 ARA</button>';
-            else h += '<div class="lb-not">Maçı lobi lideri başlatır. Başlayınca otomatik bağlanırsın.</div>';
-        } else h += '<div class="lb-not">Lobi en fazla 2 kişi. Yukarıdaki + ile ya da DAVET ET sekmesinden birini çağır.</div>';
-        if (d) h += '<button class="kl-btn k" onclick="LOBI.ayril()">LOBİDEN AYRIL</button>';
+        const iki = !!(d && d.uyeler.length === 2); let h = '';
+        if (iki && d.benLider) h = '<button class="lb-basla" onclick="LOBI.baslatEmir(\'v2\')">⚔ MAÇA BAŞLA<small>2v2 • rakip takım bulunamazsa 2 bot gelir</small></button>';
+        else h = '<button class="lb-basla" disabled>' + (iki ? 'LİDER BAŞLATACAK' : 'MAÇA BAŞLA') + '<small>' + (iki ? 'Lider maçı başlatınca otomatik bağlanırsın' : 'Başlamak için lobiye bir oyuncu davet et') + '</small></button>';
+        if (d) h += '<button class="kl-btn k lb-ayril" onclick="LOBI.ayril()">LOBİDEN AYRIL</button>';
         e.innerHTML = h;
     },
     msjCiz(ilk) {
@@ -4829,7 +4862,7 @@ const LOBI = {
 /* ---------- 2v2 ONLINE (Render maç sunucusu, 4 oyuncu) ---------- */
 const V2_X = [130, 270];
 const V2 = {
-    aktif: false, oturum: false, basladi: false, bitirildi: false, renk: 'mavi', slot: 0, mid: '', srv: '', tk: '', mws: null, hws: null, lb: '',
+    aktif: false, oturum: false, basladi: false, bitirildi: false, bot: false, t0: 0, aramaI: 0, renk: 'mavi', slot: 0, mid: '', srv: '', tk: '', mws: null, hws: null, lb: '',
     dost: null, rakipler: [], snaps: [], olaylar: [], off: 0, offVar: false, jit: 0, gecikme: 100, sayac: 0, sonVuran: 'mavi', oncekiGol: false,
     hx: 200, hy: 480, px: 200, py: 480, ppx: 200, ppy: 480, hSon: 0, gx: -1, gy: -1, seq: 0, mSon: 0, mAcc: 0, sonVeri: 0, sonEmoji: 0,
     girisTimer: 0, bekciTimer: 0, p2pT: 0, yenidenT: 0, hKeep: 0, hDeneme: 0, mTekrar: 0, p2pHata: 0, pid: 0, denemeId: 0,
@@ -4858,7 +4891,13 @@ const V2 = {
         ws.onopen = () => {
             acildi = true; clearTimeout(zt); if (this.hws !== ws) return;
             clearInterval(this.hKeep); this.hKeep = setInterval(() => { try { if (ws.readyState === 1) ws.send('{"t":"p"}'); } catch (_) {} }, 15000);
-            bekleGoster(this.lb ? 'Takım arkadaşın bekleniyor…' : '2v2 takım arkadaşı ve rakipler aranıyor…', '');
+            bekleGoster(this.lb ? 'Rakip takım aranıyor…' : '2v2 takım arkadaşı ve rakipler aranıyor…', '');
+            this.t0 = Date.now(); clearInterval(this.aramaI);
+            this.aramaI = setInterval(() => {
+                if (!this.oturum || this.aktif || this.mws) { clearInterval(this.aramaI); return; }
+                const k = onlineEl('online-bekleme'); if (k.classList.contains('hata')) return;
+                onlineEl('onlineAlt').innerText = 'Rakip aranıyor… ' + Math.floor((Date.now() - this.t0) / 1000) + ' sn' + ' • 15 sn içinde bulunamazsa botlar katılır';
+            }, 500);
             ws.send(JSON.stringify({ t: 'q', tok: API.token, mod: 'v2', lb: this.lb || undefined, iz: aktifTopIzi, sv: aktifSevinc, ge: aktifGolEmoji, ko: aktifKostum }));
         };
         ws.onmessage = (e) => {
@@ -4885,6 +4924,7 @@ const V2 = {
         sesMotorunuBaslat(); this.hwsKapat();
         const pf = r => ({ ad: String((r && r.ad) || 'OYUNCU').slice(0, 20), iz: gecerliId(IZ, r && r.iz, 'kuyrukluyildiz'), sv: gecerliId(SEV, r && r.sv, 'sv_halka'),
             ge: gecerliId(GOLEMOJI, r && r.ge, 'gl_gol'), ko: kostumGecerli(r && r.ko), nr: nickRenkGecerli(r && r.nr) ? r.nr : '' });
+        clearInterval(this.aramaI); this.bot = !!m.bot;
         this.renk = m.renk === 'kirmizi' ? 'kirmizi' : 'mavi'; this.slot = m.slot ? 1 : 0;
         this.mid = String(m.id || ''); this.srv = String(m.srv || ''); this.tk = String(m.tk || '');
         this.dost = pf(m.tm); this.rakipler = (m.rk || []).slice(0, 2).map(pf);
@@ -4953,7 +4993,7 @@ const V2 = {
         try { GLOBAL.kapat(); LOBI.bildirimKapat(); LOBI.bannerGizle(); } catch (_) {}
         const now = performance.now(); this.mSon = now; this.mAcc = 0; this.sonVeri = now; this.hSon = now;
         bekleGizle(); onlineEl('online-sonuc').style.display = 'none'; onlineEl('lobi-ekrani').style.display = 'none'; onlineEl('mod-secim-ekrani').style.display = 'none'; onlineEl('oyun-ekrani').style.display = 'flex';
-        oyuncuSkor = 0; rakipSkor = 0; onlineEl('botBaslik').innerText = 'RAKİP TAKIM'; skorGorunumu(); this.skorYaz();
+        oyuncuSkor = 0; rakipSkor = 0; onlineEl('botBaslik').innerText = this.bot ? 'BOT TAKIMI' : 'RAKİP TAKIM'; skorGorunumu(); this.skorYaz();
         ustFileSallanma = 0; altFileSallanma = 0; golDurumu.aktif = false; golDurumu.zamanlayici = 0; topNesne.x = 200; topNesne.y = 300; topNesne.vx = topNesne.vy = 0; topNesne.iz = []; topNesne.aci = 0;
         dokunmaAktif = false; oyunAktif = true; sonZaman = now; frameSayaci = 0; sonFizikZamani = 0; fizikBirikim = 0; oncekiPoz = [];
         emojiBalonlar = []; botEmojiPlan = null; emojiTepsiKapat(); tamEkran(); tribunSifirla(); pingSifirla();
@@ -4989,7 +5029,7 @@ const V2 = {
         else if (o.k === 'g') {
             oyuncuSkor = o.m | 0; rakipSkor = o.r | 0; this.skorYaz(); sesGolVeTaraftar();
             const g = +o.s || 8; if (o.w === 'mavi') ustFileSallanma = g; else altFileSallanma = g;
-            if (o.w === this.renk) altin += 15;
+            if (o.w === this.renk && !this.bot) altin += 15;
         }
     },
     tick() {
@@ -5070,6 +5110,7 @@ const V2 = {
         onlineEl('online-sonuc').style.display = 'flex';
     },
     sonuc(kazandi, el) {
+        if (this.bot) { el.className = 'kupa-sonuc'; el.innerHTML = '<small>🤖 Bot maçı: kupa / ödül yok</small>'; return; }
         const p = RANK.p, d = kazandi ? 15 : -Math.min(3, p.kupa);
         p.kupa += d; p.mac++; if (kazandi) p.gal++; else p.mag++; RANK.arayuz();
         el.className = 'kupa-sonuc' + (kazandi ? '' : ' kayip'); el.innerHTML = '🏆 ' + (d > 0 ? '+' : '') + d + '<small>2v2 • ' + nf(p.kupa) + ' kupa</small>';
@@ -5082,7 +5123,7 @@ const V2 = {
         })();
     },
     kapat() {
-        this.denemeId++; clearTimeout(this.yenidenT); clearInterval(this.girisTimer); clearInterval(this.bekciTimer);
+        this.denemeId++; clearTimeout(this.yenidenT); clearInterval(this.aramaI); clearInterval(this.girisTimer); clearInterval(this.bekciTimer);
         this.hwsKapat(); this.mwsKapat();
         this.aktif = false; this.oturum = false; this.basladi = false;
         try { bekleGizle(); onlineEl('online-sonuc').style.display = 'none'; skorGorunumu(); } catch (_) {}
@@ -5097,6 +5138,23 @@ const V2 = {
         if (lb) sekmeGecis('arkadas', document.querySelectorAll('.nav-item')[3]); else this.ac('');
     }
 };
+
+/* ---------- ÇEKİL (onaylı) ---------- */
+function cekilMetni() {
+    if (V2.oturum && V2.bot) return 'Bot maçı burada sona erer; kupa ve ödül işlenmez.';
+    if (V2.oturum) return 'Takım arkadaşın maça sensiz devam eder. Emin misin?';
+    if (ONL.aktif && ONL.ozel) return 'Özel maçtan çekilirsen rakibin kazanır (kupa etkilenmez).';
+    if (ONL.aktif) return 'Çekilirsen maç yenilgi sayılır ve kupa kaybedersin.';
+    if (RANK.botMac) return 'Çekilirsen bu maç yenilgi sayılır ve kupa kaybedersin.';
+    return 'Antrenman maçından çıkıp lobiye dönülecek.';
+}
+function cekilSor() {
+    sesMotorunuBaslat();
+    document.getElementById('cekilMetin').textContent = cekilMetni();
+    document.getElementById('cekil-modal').style.display = 'flex';
+}
+function cekilKapat() { document.getElementById('cekil-modal').style.display = 'none'; }
+function cekilOnayla() { cekilKapat(); lobiyeDon(); }
 </script>
 </body>
 </html>
