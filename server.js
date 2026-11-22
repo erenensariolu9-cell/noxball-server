@@ -43,7 +43,7 @@ function biletCoz(tk) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   let p; try { p = JSON.parse(Buffer.from(yuk, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!p || typeof p.mid !== 'string' || !(p.r === 'mavi' || p.r === 'kirmizi') || !(p.exp > Date.now())) return null;
-  if (p.m === 2) { if (!['a', 'b', 'c', 'd'].includes(p.p) || !(p.s === 0 || p.s === 1)) return null; }
+  if (p.m === 2) { if (p.bot === 1 && !['a', 'b'].includes(p.p)) return null; if (!['a', 'b', 'c', 'd'].includes(p.p) || !(p.s === 0 || p.s === 1)) return null; }
   else if (p.p !== 'a' && p.p !== 'b') return null;
   return p;
 }
@@ -51,12 +51,12 @@ function biletCoz(tk) {
 /* ---------------- Odalar ---------------- */
 const odalar = new Map();
 const bitenler = new Map();
-const roller = o => o.v2 ? ['a', 'b', 'c', 'd'] : ['a', 'b'];
+const roller = o => (o.v2 && !o.bot) ? ['a', 'b', 'c', 'd'] : (o.bot && o.insan === 1 ? ['a'] : ['a', 'b']);   // bot maçında 1-2 insan (rakipler botlar)
 
 function yeniDisk(x, y) { return { x, y, r: 24, vx: 0, vy: 0, hedefX: x, hedefY: y }; }
-function yeniOda(id, v2) {
+function yeniOda(id, v2, bot, botRenk, insan) {
   const o = {
-    id, v2: !!v2, olusma: Date.now(), t0: 0, basladi: false, bitti2: false,
+    id, v2: !!v2, bot: !!bot, botRenk: botRenk || '', insan: insan || 2, olusma: Date.now(), t0: 0, basladi: false, bitti2: false,
     oy: { a: null, b: null, c: null, d: null },
     top: { x: 200, y: 300, r: 14, vx: 0, vy: 0, surtunme: 0.986, aci: 0 },
     mavi: yeniDisk(v2 ? V2_X[0] : 200, 480), kirmizi: yeniDisk(v2 ? V2_X[0] : 200, 120),
@@ -150,6 +150,29 @@ function santraSifirla(o) {
   o.sonVuran = 'mavi';
 }
 
+// BOT: 2v2'de rakip 2 diski sunucu yönetir. Biri hücum (topa gider), biri savunma (kale önünde top x'ini izler).
+function botDisk(d, alt, i, t) {              // alt: bu bot mavi mi (kendi kalesi altta); i: 0 hücum, 1 savunma
+  const P = y => alt ? 600 - y : y;                      // bot bakışı: kendi kalesi hep y küçük tarafta
+  const bx = t.x, by = P(t.y), bvx = t.vx, bvy = alt ? -t.vy : t.vy;
+  let tx, ty;
+  if (i === 0) {
+    if (by < 330) { tx = bx + bvx * 3; ty = Math.max(59, Math.min(276, by + bvy * 2 - 24)); }
+    else { tx = 200 + (bx - 200) * 0.3; ty = 170; }
+  } else { tx = Math.max(150, Math.min(250, bx)); ty = by < 250 ? 135 : 85; }
+  const wy = alt ? 600 - ty : ty, dx = tx - d.x, dy = wy - d.y, dist = Math.hypot(dx, dy) || 1, k = Math.min(1, 10 / dist);
+  d.hedefX = kisitla(d.x + dx * k, SAHA.sol + d.r, SAHA.sag - d.r);
+  d.hedefY = alt ? kisitla(d.y + dy * k, 300 + d.r, SAHA.alt - d.r) : kisitla(d.y + dy * k, SAHA.ust + d.r, 300 - d.r);
+}
+// BOT: rakip 2 diski sunucu yönetir (biri hücum, biri savunma). Tek insanlı takımda takım arkadaşı diski de bottur (savunma).
+function botAdim(o) {
+  const t = o.top, alt = o.botRenk === 'mavi';
+  const ds = alt ? [o.mavi, o.mavi2] : [o.kirmizi, o.kirmizi2];
+  for (let i = 0; i < 2; i++) botDisk(ds[i], alt, i, t);
+  if (o.insan === 1) {
+    const hs = (o.oy.a && o.oy.a.slot) || 0, hAlt = !alt;
+    botDisk(hAlt ? (hs ? o.mavi : o.mavi2) : (hs ? o.kirmizi : o.kirmizi2), hAlt, 1, t);
+  }
+}
 function adim(o) {
   const t = o.top;
   if (o.sayac > 0) { o.sayac--; for (const [d] of diskListe(o)) diskHareket(d); return; }
@@ -166,6 +189,7 @@ function adim(o) {
     return;
   }
 
+  if (o.bot) botAdim(o);
   for (const [d] of diskListe(o)) diskHareket(d);
 
   let gh = Math.sqrt(t.vx * t.vx + t.vy * t.vy);
@@ -250,6 +274,11 @@ function macIptal(o) {
 function oyuncuAyrildi(o, rol) {
   if (o.bitti2) return;
   if (!o.basladi || Date.now() - o.t0 < MIN_MAC_MS) return macIptal(o);
+  if (o.v2 && o.bot) {
+    const oy = o.oy[rol]; if (oy) oy.ayrildi = true;
+    if (roller(o).every(r => o.oy[r] && o.oy[r].ayrildi)) macIptal(o);   // iki insan da gitti
+    return;
+  }
   if (o.v2) {
     const oy = o.oy[rol]; if (oy) oy.ayrildi = true;
     const takimGitti = renk => roller(o).filter(r => o.oy[r] && o.oy[r].renk === renk).every(r => o.oy[r].ayrildi);
@@ -343,11 +372,11 @@ const EMOJI_ID = /^[a-z0-9_]{1,24}$/;
 const kisitla = (v, a, b) => Math.max(a, Math.min(b, v));
 
 function odayaAl(ws, p) {
-  const v2 = p.m === 2;
+  const v2 = p.m === 2, bot = v2 && p.bot === 1;
   if (bitenler.has(p.mid)) return gonder(ws, { k: 'iptal' }), ws.close();
   let o = odalar.get(p.mid);
-  if (!o) { o = yeniOda(p.mid, v2); odalar.set(p.mid, o); donguBaslat(); }
-  if (o.bitti2 || o.v2 !== v2) return gonder(ws, { k: 'iptal' }), ws.close();
+  if (!o) { o = yeniOda(p.mid, v2, bot, p.r === 'mavi' ? 'kirmizi' : 'mavi', p.n === 1 ? 1 : 2); odalar.set(p.mid, o); donguBaslat(); }
+  if (o.bitti2 || o.v2 !== v2 || o.bot !== bot) return gonder(ws, { k: 'iptal' }), ws.close();
   let oy = o.oy[p.p];
   if (!v2) {
     const diger = o.oy[digerRol(p.p)];
