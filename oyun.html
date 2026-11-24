@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -1818,6 +1818,15 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
             let icIceGirme = minMesafe - mesafe;
             let nx = dx / mesafe;
             let ny = dy / mesafe;
+            { // top duvara sıkışıyorsa duvar boyunca kaysın (vurdum ama gitmedi hatası)
+                const tr = topNesne.r, px = topNesne.x + nx * icIceGirme, py = topNesne.y + ny * icIceGirme, kapi = topNesne.x > KALE.sol && topNesne.x < KALE.sag;
+                const bx = (px - tr < SAHA.sol && nx < 0) || (px + tr > SAHA.sag && nx > 0), by = !kapi && ((py - tr < SAHA.ust && ny < 0) || (py + tr > SAHA.alt && ny > 0));
+                if (bx || by) {
+                    if (bx && by) { nx = (SAHA.sol + SAHA.sag) / 2 > topNesne.x ? 1 : -1; ny = (SAHA.ust + SAHA.alt) / 2 > topNesne.y ? 1 : -1; const m = Math.hypot(nx, ny); nx /= m; ny /= m; }
+                    else if (bx) { ny = ny >= 0 ? 1 : -1; const k = Math.sqrt(Math.max(0, minMesafe * minMesafe - dx * dx)); nx = 0; topNesne.y = disk.y + ny * Math.max(k, 1); topNesne.x = Math.max(SAHA.sol + tr, Math.min(SAHA.sag - tr, topNesne.x)); dx = 0; icIceGirme = 0; }
+                    else { nx = nx >= 0 ? 1 : -1; const k = Math.sqrt(Math.max(0, minMesafe * minMesafe - dy * dy)); ny = 0; topNesne.x = disk.x + nx * Math.max(k, 1); topNesne.y = Math.max(SAHA.ust + tr, Math.min(SAHA.alt - tr, topNesne.y)); icIceGirme = 0; }
+                }
+            }
             topNesne.x += nx * icIceGirme;
             topNesne.y += ny * icIceGirme;
             let vurusGucu = Math.sqrt(disk.vx * disk.vx + disk.vy * disk.vy);
@@ -2021,7 +2030,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
         carpismayiCoz(rakip);
     }
     function kaleCiz(ustMu, TG) {
-        const S = TG || SAHA, K = TG ? { sol: TG.kSol, sag: TG.kSag, derinlik: TG.kDer, direkR: K.direkR * TG.f, cx: TG.cx, k: TG.f } : { sol: K.sol, sag: K.sag, derinlik: K.derinlik, direkR: K.direkR, cx: 200, k: 1 };
+        const S = TG || SAHA, K = TG ? { sol: TG.kSol, sag: TG.kSag, derinlik: TG.kDer, direkR: KALE.direkR * TG.f, cx: TG.cx, k: TG.f } : { sol: KALE.sol, sag: KALE.sag, derinlik: KALE.derinlik, direkR: KALE.direkR, cx: 200, k: 1 };
         let y = ustMu ? S.ust - K.derinlik : S.alt;
         let sallanma = ustMu ? ustFileSallanma : altFileSallanma;
         let ofset = Math.sin(fileZaman) * sallanma;
@@ -2433,6 +2442,7 @@ canvas#saha { width: auto; height: auto; max-width: none; max-height: none; aspe
     function gorX(d) { return ONL.aktif && GOR.ok && d === (ONL.renk === 'mavi' ? rakip : oyuncu) ? GOR.x : d.x; }
     function gorY(d) { return ONL.aktif && GOR.ok && d === (ONL.renk === 'mavi' ? rakip : oyuncu) ? GOR.y : d.y; }
     function ciz() {
+        topNesne.r = V2.aktif ? V2.G.br : 14;
         gorGuncelle();
         ctx.setTransform(QX, 0, 0, QY, 0, 0);
         ctx.save();
@@ -4394,22 +4404,25 @@ err_sifre: ['Şifre yanlış!','Wrong password!','Falsches Passwort!','¡Contras
     const KOSTUM_VERI = [{ id: 'yok', ad: 'Varsayılan', kat: '', tier: 'y' }].concat(KOSTUM_LISTE.map(r => ({ id: r[0], ad: r[1], kat: r[0][0] === 'k' ? 'Bayrak' : 'Forma', tier: r[0][0] === 'k' ? 'n' : 'e' })));
     const kostumGecerli = id => (typeof id === 'string' && Object.prototype.hasOwnProperty.call(KOSTUM_CIZ, id)) ? id : '';
     const KS_CACHE = {};
-    function kostumSprite(id, takim) {          // 100x100 önbellekli disk görseli (takım renkli halka dışta kalır: kim hangi takımda belli olsun)
+    function kostumSprite(id, takim) {          // 100x100 önbellekli disk görseli: kostüm diskin TAMAMINI kaplar, takım rengi sadece ince çerçeve
         const key = id + '|' + takim; if (KS_CACHE[key]) return KS_CACHE[key];
         const S = 100, h = document.createElement('canvas'); h.width = h.height = S; const c = h.getContext('2d'), r = S / 2;
-        c.save(); c.beginPath(); c.arc(r, r, r - 3, 0, 6.2832); c.clip(); c.translate(r, r); c.scale(r, r); KOSTUM_CIZ[id](c); c.restore();
-        const g = c.createRadialGradient(r * 0.7, r * 0.6, 2, r, r, r); g.addColorStop(0, 'rgba(255,255,255,.35)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.28)');
-        c.fillStyle = g; c.beginPath(); c.arc(r, r, r - 3, 0, 6.2832); c.fill();
-        c.lineWidth = 7; c.strokeStyle = takim === 'kirmizi' ? '#ff4757' : '#1e90ff'; c.beginPath(); c.arc(r, r, r - 6.5, 0, 6.2832); c.stroke();
-        c.lineWidth = 3; c.strokeStyle = '#fff'; c.beginPath(); c.arc(r, r, r - 1.5, 0, 6.2832); c.stroke();
+        c.save(); c.beginPath(); c.arc(r, r, r, 0, 6.2832); c.clip();
+        c.fillStyle = '#fff'; c.fillRect(0, 0, S, S);
+        c.translate(r, r); c.scale(r * 1.02, r * 1.02); KOSTUM_CIZ[id](c); c.restore();   // tam kaplasın (kenarda boşluk kalmasın)
+        c.save(); c.beginPath(); c.arc(r, r, r, 0, 6.2832); c.clip();
+        const g = c.createRadialGradient(r * 0.7, r * 0.6, 2, r, r, r); g.addColorStop(0, 'rgba(255,255,255,.30)'); g.addColorStop(0.55, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.22)');
+        c.fillStyle = g; c.fillRect(0, 0, S, S); c.restore();
+        c.lineWidth = 6; c.strokeStyle = takim === 'kirmizi' ? '#ff4757' : '#1e90ff'; c.beginPath(); c.arc(r, r, r - 3, 0, 6.2832); c.stroke();   // ince takım çerçevesi
+        c.lineWidth = 2; c.strokeStyle = '#fff'; c.beginPath(); c.arc(r, r, r - 1, 0, 6.2832); c.stroke();
         return KS_CACHE[key] = h;
     }
-    function diskCiz(x, y, r, takim, ko) {      // oyun sahasında disk: kostüm varsa sprite, yoksa düz renk
+    function diskCiz(x, y, r, takim, ko) {      // tüm diskler AYNI dış yarıçapta (r): kostümlü de düz de
         if (ko && ko !== 'yok' && KOSTUM_CIZ[ko]) {
             ctx.save(); ctx.translate(x, y); if (donukMu()) ctx.rotate(Math.PI);   // saha dönse bile bayrak dik kalsın
             ctx.drawImage(kostumSprite(ko, takim), -r, -r, r * 2, r * 2); ctx.restore(); return;
         }
-        ctx.fillStyle = takim === 'kirmizi' ? '#ff4757' : '#1e90ff'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = takim === 'kirmizi' ? '#ff4757' : '#1e90ff'; ctx.beginPath(); ctx.arc(x, y, r - 1.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
     }
     function miniKostumCiz(c, id, x, y, r) {    // mağaza önizlemesi
         if (id === 'yok') { c.fillStyle = '#1e90ff'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill(); c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); return; }
@@ -4911,10 +4924,12 @@ const LOBI = {
 // Saha büyütme katsayısı: render-server.js'deki ZOOM ile AYNI olmalı. Büyük saha "dünya" birimleriyle hesaplanır, ekrana 1/f küçültülerek çizilir
 // (oyuncu diskleri ve top aynı boyutta kalır, saha göreli olarak büyür).
 const TAKIM_ZOOM = { 2: 1.3, 3: 1.6 };
+// Disk/top boyut katsayısı (render-server.js'deki DK ile AYNI). Ekrandaki boyut = 24*DK/ZOOM: 2v2 ≈ 22px, 3v3 ≈ 22px (eskiden 15px'e düşüyordu)
+const TAKIM_DK = { 2: 1.2, 3: 1.45 };
 const TK_KUPA = { v2: [15, 3], v3: [12, 3] };      // [kazanç, kayıp]  (hf-server.js'deki TK ile aynı)
 function takimGeo(T) {
-    const f = TAKIM_ZOOM[T] || 1, w = 320 * f, h = 530 * f, cx = 40 + w / 2;
-    return { f: f, T: T, sol: 40, ust: 35, w: w, h: h, sag: 40 + w, alt: 35 + h, mid: 35 + h / 2, cx: cx, kSol: cx - 70 * f, kSag: cx + 70 * f, kDer: 24 * f };
+    const f = TAKIM_ZOOM[T] || 1, dk = TAKIM_DK[T] || 1, w = 320 * f, h = 530 * f, cx = 40 + w / 2;
+    return { f: f, T: T, sol: 40, ust: 35, w: w, h: h, sag: 40 + w, alt: 35 + h, mid: 35 + h / 2, cx: cx, kSol: cx - 70 * f, kSag: cx + 70 * f, kDer: 24 * f, dk: dk, dr: 24 * dk, br: 14 * dk };
 }
 function takimBaslangic(G, T, renk, slot) { return { x: G.sol + G.w * (slot + 1) / (T + 1), y: renk === 'mavi' ? G.alt - 85 * G.f : G.ust + 85 * G.f }; }
 const V2 = {
@@ -4928,7 +4943,7 @@ const V2 = {
     modAyarla(mod) {
         this.mod = mod === 'v3' ? 'v3' : 'v2'; this.T = this.mod === 'v3' ? 3 : 2; this.G = takimGeo(this.T);
         this.diskler = { mavi: [], kirmizi: [] };
-        for (const renk of ['mavi', 'kirmizi']) for (let s = 0; s < this.T; s++) { const p = takimBaslangic(this.G, this.T, renk, s); this.diskler[renk].push({ x: p.x, y: p.y, r: 24 }); }
+        for (const renk of ['mavi', 'kirmizi']) for (let s = 0; s < this.T; s++) { const p = takimBaslangic(this.G, this.T, renk, s); this.diskler[renk].push({ x: p.x, y: p.y, r: this.G.dr }); }
     },
     sifirla() {
         this.aktif = false; this.basladi = false; this.bitirildi = false; this.snaps = []; this.olaylar = []; this.offVar = false; this.off = 0; this.jit = 0; this.gecikme = 80;
@@ -5082,7 +5097,7 @@ const V2 = {
     skorYaz() { const m = this.renk === 'mavi'; onlineEl('oyuncuSkor').innerText = m ? oyuncuSkor : rakipSkor; onlineEl('rakipSkor').innerText = m ? rakipSkor : oyuncuSkor; },
     // ekrandaki dokunma noktası (400x600) -> dünya koordinatı (kendi yarı sahamla sınırlı; kırmızıysa sunucu bakışına çevrilir)
     hedef(x, y) {
-        const G = this.G, r = 24;
+        const G = this.G, r = G.dr;
         let wx = G.sol + (x - SAHA.sol) * G.f, wy = G.ust + (y - SAHA.ust) * G.f;
         wx = Math.max(G.sol + r, Math.min(G.sag - r, wx)); wy = Math.max(G.mid + r, Math.min(G.alt - r, wy));
         if (donukMu()) { wx = G.sol + G.sag - wx; wy = G.ust + G.alt - wy; }
@@ -5108,7 +5123,7 @@ const V2 = {
     tick() {
         fileZaman += 0.25; ustFileSallanma *= 0.94; altFileSallanma *= 0.94;
         if (golDurumu.aktif) return;
-        const G = this.G, r = 24;
+        const G = this.G, r = G.dr;
         this.ppx = this.px; this.ppy = this.py;
         this.px += (this.hx - this.px) * 0.35; this.py += (this.hy - this.py) * 0.35;
         // takım arkadaşlarının üstüne çıkma (sunucudaki kuralın aynısı; tahmin sunucuyla uyumlu kalır)
@@ -5170,13 +5185,13 @@ const V2 = {
         const f = this.G.f;
         ctx.save(); ctx.translate(x, y); if (donukMu()) ctx.rotate(Math.PI); ctx.scale(f, f);     // yazı boyu ekranda sabit kalsın
         ctx.font = "800 11px 'Segoe UI', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.fillStyle = '#fff';
-        const oy = -(24 / f + 4);
+        const oy = -(this.G.dr / f + 4);
         ctx.strokeText(ad, 0, oy); ctx.fillText(ad, 0, oy); ctx.restore();
     },
     diskleriCiz() {
         const D = this.diskler, mk = this.renk, rk = mk === 'mavi' ? 'kirmizi' : 'mavi', n = this.T;
-        for (let i = 0; i < n; i++) { const d = D[rk][i], p = this.rakipler[i] || {}; diskCiz(d.x, d.y, 24, rk, p.ko); this.isim(d.x, d.y, p.ad); }
-        for (let i = 0; i < n; i++) { const d = D[mk][i], ben = i === this.slot, p = ben ? { ad: 'SEN', ko: aktifKostum } : (this.tp[i] || {}); diskCiz(d.x, d.y, 24, mk, p.ko); this.isim(d.x, d.y, p.ad); }
+        for (let i = 0; i < n; i++) { const d = D[rk][i], p = this.rakipler[i] || {}; diskCiz(d.x, d.y, this.G.dr, rk, p.ko); this.isim(d.x, d.y, p.ad); }
+        for (let i = 0; i < n; i++) { const d = D[mk][i], ben = i === this.slot, p = ben ? { ad: 'SEN', ko: aktifKostum } : (this.tp[i] || {}); diskCiz(d.x, d.y, this.G.dr, mk, p.ko); this.isim(d.x, d.y, p.ad); }
     },
     bitir(kaz, neden, d) {
         if (this.bitirildi) return; this.bitirildi = true;
