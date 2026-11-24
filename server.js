@@ -204,7 +204,7 @@ function santraSifirla(o) {
    Bakış: botun kendi kalesi y küçük, rakip kalesi y büyük olacak şekilde çevrilir (V()).
    Her tick: topun yörüngesi tahmin edilir -> en erken yetişen disk "forvet" olur, topun ARKASINA geçip rakip kaleye doğru vurur;
    en geride kalan "kaleci" olur (top kaleye gidiyorsa yörüngeyi keser), kalanlar "destek" olur (orta saha). */
-const BOT_HIZ = 8.6;                       // diskin tick başına gerçek hızı (1v1 ölçeği); büyük sahada sqrt(f) ile büyür
+const BOT_HIZ = 11.5;                      // diskin tick başına gerçek hızı (1v1 ölçeği); büyük sahada sqrt(f) ile büyür
 function topIz(o, n) {                     // topun n tick sonrasını tahmin et (duvar sekmeli, disksiz)
   const t = o.top, G = o.G, r = t.r, out = [];
   let x = t.x, y = t.y, vx = t.vx, vy = t.vy;
@@ -278,6 +278,9 @@ function botTakim(o, renk, slotlar) {
   let kaleci = -1, kY = -1;
   D.forEach((d, i) => { if (i === atak || i === bekleyen) return; const y = V(d.y); if (kaleci < 0 || y < kY) { kaleci = i; kY = y; } });
   if (kaleci < 0 && atak < 0 && bekleyen < 0) kaleci = 0;
+  // KALE TEHDİDİ: top yörüngesi (duvar sekmeleriyle) kale ağzından içeri giriyorsa tüm savunma o noktaya kapanır
+  const tehditP = iz.find(p => p.y <= G.ust + t.r + 12 * f && p.x > G.cx - 70 * f - t.r && p.x < G.cx + 70 * f + t.r) || null;
+  const blok = (yon, h) => { const ky = G.ust + 44 * f; return [kisitla(tehditP.x + yon * (r * 2 + 4), G.sol + r, G.sag - r), ky, h]; };
   const giris = iz.find(p => p.y <= yarim), hx = giris ? giris.x : bx;
   const hazirX = kisitla(G.cx + (hx - G.cx) * 0.6, G.sol + r, G.sag - r), hazirY = G.mid - 105 * f;
 
@@ -303,23 +306,27 @@ function botTakim(o, renk, slotlar) {
       st.bek = hizali ? st.bek + 1 : 0;
       // VURUŞ ZAMANLAMASI: gelen top yaklaşınca (≤8 tick) ya da duran top için kısa bir bekleyişten sonra sert vur; hemen atılma yok
       const vur = hizali && yakin < minM + 90 * f && (hizTop > 2 ? kk <= 8 : st.bek >= 14);
-      if (vur) botGit(o, d, alt, q.x + ux * minM * 0.6, q.y + uy * minM * 0.6, hiz * 1.25);
+      if (vur) botGit(o, d, alt, q.x + ux * minM * 0.6, q.y + uy * minM * 0.6, hiz * 1.35);
       else if (boyunca < -minM * 0.4) botGit(o, d, alt, q.x - ux * (minM + 10), q.y - uy * (minM + 10), hiz);   // arkaya geç ve bekle
       else {                                                                      // topun önündeyiz: yandan dolan, kendi kaleye vurma
         const yan = dik >= 0 ? 1 : -1;
         botGit(o, d, alt, q.x - ux * (minM + 16) - uy * yan * (minM + 18), q.y - uy * (minM + 16) + ux * yan * (minM + 18), hiz);
       }
     } else if (i === bekleyen) {
-      const p = uzak(hazirX, hazirY); botGit(o, d, alt, p[0], p[1], hiz);          // hazır bekleme noktası
+      if (tehditP) { const b = blok(1, hiz * 1.3); botGit(o, d, alt, b[0], b[1], b[2]); }   // tehlike: kaleyi kapat
+      else { const p = uzak(hazirX, hazirY); botGit(o, d, alt, p[0], p[1], hiz); }          // hazır bekleme noktası
     } else if (i === kaleci) {
-      const ky = G.ust + 52 * f;
-      let kx = G.cx + (bx - G.cx) * 0.45;
+      const ky = G.ust + 44 * f;
+      let kx = G.cx + (bx - G.cx) * 0.45, h = hiz;
       const gelen = iz.find(p => p.y <= ky + 20 * f);                            // top kaleye geliyorsa yörüngeyi kes
-      if (gelen && (alt ? -t.vy : t.vy) < -0.8) kx = gelen.x;
+      if (tehditP) { kx = tehditP.x; h = hiz * 1.4; }
+      else if (gelen && (alt ? -t.vy : t.vy) < -0.8) { kx = gelen.x; h = hiz * 1.2; }
       kx = kisitla(kx, G.cx - 62 * f, G.cx + 62 * f);
-      const kp = uzak(kx, ky); botGit(o, d, alt, kp[0], kp[1], hiz);
+      const kp = (tehditP || hizTop > 3) ? [kx, ky] : uzak(kx, ky);               // kaleci, tehlikede topun yolundan ASLA kaçmaz
+      botGit(o, d, alt, kp[0], kp[1], h);
     } else {
       const yan = (destekSay++ % 2 ? 1 : -1);
+      if (tehditP) { const b = blok(-yan, hiz * 1.3); botGit(o, d, alt, b[0], b[1], b[2]); return; }
       const dy0 = G.mid - 78 * f, dx0 = G.cx + (bx - G.cx) * 0.7 + yan * 42 * f;
       const sp = uzak(kisitla(dx0, G.sol + r, G.sag - r), dy0); botGit(o, d, alt, sp[0], sp[1], hiz);
     }
