@@ -84,7 +84,7 @@ function yeniOda(id, T, bot, botRenk, insan) {
     gol: { aktif: false, kim: '', z: 0 },
     skorM: 0, skorK: 0, bitenKim: null, sonVuran: 'mavi', sayac: GERI_SAYIM, tick: 0,
     sSonAnahtar: '', sSonG: 0, sSonV: 0, sSonZaman: 0,
-    botTohum: Math.random() * 100, sikisma: 0, sx: 0, sy: 0
+    botTohum: Math.random() * 100, bs: {}
   };
   for (const renk of ['mavi', 'kirmizi']) for (let s = 0; s < T; s++) { const d = yeniDisk(baslangic(G, T, renk, s), G.dr); o.dk[renk].push(d); o.liste.push([d, renk]); }
   o.roller = T === 1 ? ['a', 'b'] : (o.bot ? R6.slice(0, o.insan) : R6.slice(0, T * 2));
@@ -197,7 +197,7 @@ function santraSifirla(o) {
     const p = baslangic(G, o.T, renk, s);
     Object.assign(d, { x: p.x, y: p.y, hedefX: p.x, hedefY: p.y, vx: 0, vy: 0, ox0: p.x, oy0: p.y });
   });
-  o.sonVuran = 'mavi'; o.sikisma = 0;
+  o.sonVuran = 'mavi'; o.bs = {};
 }
 
 /* ---------------- BOT v2 ----------------
@@ -234,6 +234,14 @@ function botTakim(o, renk, slotlar) {
   const r = D[0].r, minM = t.r + r, yarim = G.mid - 8;
   const iz = topIz(o, 45).map(p => ({ x: p.x, y: V(p.y) }));
   const bx = t.x, by = V(t.y);
+  // Döngü kırıcı: top kendi yarı sahamızda duvar/köşede ~1.5 sn aynı yerde kalıyorsa (botlar arasında gidip geliyorsa) geri çekil, açıyı değiştir
+  const st = o.bs[renk] || (o.bs[renk] = { sx: 0, sy: 0, n: 0, geri: 0, varyant: 0 });
+  const duvarYakin = (px, py) => px - G.sol < t.r + 36 * f || G.sag - px < t.r + 36 * f || py - G.ust < t.r + 30 * f;
+  if (duvarYakin(bx, by) && by < G.mid && Math.hypot(bx - st.sx, by - st.sy) < 60 * f) { if (++st.n > 90) { st.n = 0; st.geri = 50; st.varyant = (st.varyant + 1) % 3; } }
+  else { st.sx = bx; st.sy = by; st.n = 0; }
+  const geri = st.geri > 0; if (geri) st.geri--;
+  // Forvet dışındaki diskler topa yaklaşmaz (iki bot topu sandviçleyip döngüye sokmasın)
+  const uzak = (tx, ty) => { const dx = tx - bx, dy = ty - by, m = Math.hypot(dx, dy), mn = minM * 2.6; if (m >= mn) return [tx, ty]; const u = m > 0.001 ? [dx / m, dy / m] : [0, -1]; return [bx + u[0] * mn, by + u[1] * mn]; };
 
   // Rakip kaleye nişan: rakip disklerinden uzak olan yana vur (hafif, yavaş değişen hata ile)
   const rk = renk === 'mavi' ? 'kirmizi' : 'mavi';
@@ -264,9 +272,15 @@ function botTakim(o, renk, slotlar) {
     const dyv = V(d.y);
     if (i === atak) {
       const q = bilgi[i].q;
+      if (geri && duvarYakin(bx, by)) {                                           // geri çekil: topun yanından çık, sonra başka açıyla gel
+        const cx0 = G.cx - bx, cy0 = (G.mid - 40 * f) - by, m0 = Math.hypot(cx0, cy0) || 1;
+        botGit(o, d, alt, bx + cx0 / m0 * minM * 3.2, by + cy0 / m0 * minM * 3.2, hiz); return;
+      }
       let ax = aimX, ay = aimY;
-      if (q.x - G.sol < t.r + 36 * f || G.sag - q.x < t.r + 36 * f || q.y - G.ust < t.r + 30 * f) {   // top duvar/köşede: kaleye değil, duvar boyunca sahaya doğru vur (köşede spam yapma)
-        ax = q.y - G.ust < t.r + 30 * f ? G.cx : q.x + (q.x < G.cx ? 1 : -1) * 70 * f; ay = q.y + 150 * f;
+      if (duvarYakin(q.x, q.y)) {                                                 // top duvar/köşede: duvar boyunca / içeri / kaleye (varyant sırayla değişir)
+        const ic = q.x < G.cx ? 1 : -1;
+        if (st.varyant === 0) { ax = q.y - G.ust < t.r + 30 * f ? G.cx : q.x + ic * 70 * f; ay = q.y + 150 * f; }
+        else if (st.varyant === 1) { ax = G.cx; ay = q.y + 70 * f; }
       }
       let ux = ax - q.x, uy = ay - q.y; const um = Math.hypot(ux, uy) || 1; ux /= um; uy /= um;
       const rx = d.x - q.x, ry = dyv - q.y;
@@ -288,14 +302,11 @@ function botTakim(o, renk, slotlar) {
       const gelen = iz.find(p => p.y <= ky + 20 * f);                            // top kaleye geliyorsa yörüngeyi kes
       if (gelen && (alt ? -t.vy : t.vy) < -0.8) kx = gelen.x;
       kx = kisitla(kx, kaleX - 62 * f, kaleX + 62 * f);
-      // top çok yakına gelip yavaşladıysa kaleci de temizlesin
-      if (by < G.ust + 130 * f && Math.hypot(t.vx, t.vy) < 3 && Math.hypot(bx - d.x, by - dyv) < minM + 70 * f) {
-        botGit(o, d, alt, bx, by + 20, hiz * 1.1);
-      } else botGit(o, d, alt, kx, ky, hiz);
+      const kp = uzak(kx, ky); botGit(o, d, alt, kp[0], kp[1], hiz);
     } else {
       const yan = (destekSay++ % 2 ? 1 : -1);
       const dy0 = G.mid - 78 * f, dx0 = G.cx + (bx - G.cx) * 0.7 + yan * 42 * f;
-      botGit(o, d, alt, kisitla(dx0, G.sol + r, G.sag - r), Math.min(dy0, by - 70 * f > G.ust + 120 * f ? by - 70 * f : dy0), hiz);
+      const sp = uzak(kisitla(dx0, G.sol + r, G.sag - r), Math.min(dy0, by - 70 * f > G.ust + 120 * f ? by - 70 * f : dy0)); botGit(o, d, alt, sp[0], sp[1], hiz);
     }
   });
 }
@@ -351,14 +362,6 @@ function adim(o) {
     } else if (t.y + t.r > G.alt) { t.y = G.alt - t.r; t.vy *= -SEKME; }
   }
   for (const [d, renk] of o.liste) carpismayiCoz(o, d, renk);
-  // Sıkışma kuralı: top duvar/köşe yakınında ~2.5 sn aynı yerde kalırsa (spam vuruşlar dahil) sahanın ortasına doğru fırlatılır
-  const f = G.f, yd = t.x - G.sol < t.r + 50 * f || G.sag - t.x < t.r + 50 * f || t.y - G.ust < t.r + 50 * f || G.alt - t.y < t.r + 50 * f;
-  if (yd && Math.hypot(t.x - o.sx, t.y - o.sy) < 45 * f) {
-    if (++o.sikisma >= 150) {
-      const dx = G.cx - t.x, dy = G.mid - t.y, m = Math.hypot(dx, dy) || 1;
-      t.vx = dx / m * 8; t.vy = dy / m * 8; o.sikisma = 0; o.sx = t.x; o.sy = t.y; olay(o, 2);
-    }
-  } else { o.sx = t.x; o.sy = t.y; o.sikisma = 0; }
 }
 
 // Anlık görüntü. 1v1: k:'s'   Takım: k:'s2'  (m ve r dizileri 2*T sayı: [x0,y0,x1,y1,...])
