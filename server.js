@@ -84,7 +84,7 @@ function yeniOda(id, T, bot, botRenk, insan) {
     gol: { aktif: false, kim: '', z: 0 },
     skorM: 0, skorK: 0, bitenKim: null, sonVuran: 'mavi', sayac: GERI_SAYIM, tick: 0,
     sSonAnahtar: '', sSonG: 0, sSonV: 0, sSonZaman: 0,
-    botTohum: Math.random() * 100
+    botTohum: Math.random() * 100, sikisma: 0, sx: 0, sy: 0
   };
   for (const renk of ['mavi', 'kirmizi']) for (let s = 0; s < T; s++) { const d = yeniDisk(baslangic(G, T, renk, s), G.dr); o.dk[renk].push(d); o.liste.push([d, renk]); }
   o.roller = T === 1 ? ['a', 'b'] : (o.bot ? R6.slice(0, o.insan) : R6.slice(0, T * 2));
@@ -197,7 +197,7 @@ function santraSifirla(o) {
     const p = baslangic(G, o.T, renk, s);
     Object.assign(d, { x: p.x, y: p.y, hedefX: p.x, hedefY: p.y, vx: 0, vy: 0, ox0: p.x, oy0: p.y });
   });
-  o.sonVuran = 'mavi';
+  o.sonVuran = 'mavi'; o.sikisma = 0;
 }
 
 /* ---------------- BOT v2 ----------------
@@ -264,7 +264,11 @@ function botTakim(o, renk, slotlar) {
     const dyv = V(d.y);
     if (i === atak) {
       const q = bilgi[i].q;
-      let ux = aimX - q.x, uy = aimY - q.y; const um = Math.hypot(ux, uy) || 1; ux /= um; uy /= um;
+      let ax = aimX, ay = aimY;
+      if (q.x - G.sol < t.r + 36 * f || G.sag - q.x < t.r + 36 * f || q.y - G.ust < t.r + 30 * f) {   // top duvar/köşede: kaleye değil, duvar boyunca sahaya doğru vur (köşede spam yapma)
+        ax = q.y - G.ust < t.r + 30 * f ? G.cx : q.x + (q.x < G.cx ? 1 : -1) * 70 * f; ay = q.y + 150 * f;
+      }
+      let ux = ax - q.x, uy = ay - q.y; const um = Math.hypot(ux, uy) || 1; ux /= um; uy /= um;
       const rx = d.x - q.x, ry = dyv - q.y;
       const boyunca = rx * ux + ry * uy, dik = -rx * uy + ry * ux;           // vuruş çizgisine göre konum
       const yakin = Math.hypot(rx, ry);
@@ -347,6 +351,14 @@ function adim(o) {
     } else if (t.y + t.r > G.alt) { t.y = G.alt - t.r; t.vy *= -SEKME; }
   }
   for (const [d, renk] of o.liste) carpismayiCoz(o, d, renk);
+  // Sıkışma kuralı: top duvar/köşe yakınında ~2.5 sn aynı yerde kalırsa (spam vuruşlar dahil) sahanın ortasına doğru fırlatılır
+  const f = G.f, yd = t.x - G.sol < t.r + 50 * f || G.sag - t.x < t.r + 50 * f || t.y - G.ust < t.r + 50 * f || G.alt - t.y < t.r + 50 * f;
+  if (yd && Math.hypot(t.x - o.sx, t.y - o.sy) < 45 * f) {
+    if (++o.sikisma >= 150) {
+      const dx = G.cx - t.x, dy = G.mid - t.y, m = Math.hypot(dx, dy) || 1;
+      t.vx = dx / m * 8; t.vy = dy / m * 8; o.sikisma = 0; o.sx = t.x; o.sy = t.y; olay(o, 2);
+    }
+  } else { o.sx = t.x; o.sy = t.y; o.sikisma = 0; }
 }
 
 // Anlık görüntü. 1v1: k:'s'   Takım: k:'s2'  (m ve r dizileri 2*T sayı: [x0,y0,x1,y1,...])
