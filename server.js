@@ -36,9 +36,9 @@ const SUSKUNLUK_MS = 7000;
 const ODA_BEKLEME_MS = 80000;
 
 // Saha büyütme (ZOOM) ve disk/top büyütme (DK). oyun.html'deki TAKIM_ZOOM / TAKIM_DK ile AYNI olmalı.
-// Ekranda disk boyu = 24*DK/ZOOM  (2v2: 22.2px, 3v3: 21.7px). Top = 14*DK.
-const ZOOM = { 1: 1, 2: 1.3, 3: 1.6 };
-const DK = { 1: 1, 2: 1.2, 3: 1.45 };
+// Ekranda disk boyu = 24*DK/ZOOM sabit kalır (2v2: 22.2px, 3v3: 21.7px): saha büyür, oyuncu/top ekran boyutu değişmez. Top = 14*DK.
+const ZOOM = { 1: 1, 2: 1.6, 3: 2.0 };
+const DK = { 1: 1, 2: 1.48, 3: 1.81 };
 function geo(T) {
   const f = ZOOM[T], dk = DK[T], w = 320 * f, h = 530 * f, cx = 40 + w / 2;
   return { f, dk, dr: 24 * dk, br: 14 * dk, direk: DIREK_R * f, sol: 40, ust: 35, w, h, sag: 40 + w, alt: 35 + h, mid: 35 + h / 2, cx, kSol: cx - 70 * f, kSag: cx + 70 * f };
