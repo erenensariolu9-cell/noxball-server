@@ -1,14 +1,11 @@
 /* =====================================================================
-   NOXBALL MAÇ SUNUCUSU  (Render)   v2.1
-   - SADECE maçı yönetir: fizik, skor, geri sayım, gol, bitiş. Hesap/kupa/eşleşme YOKTUR (hepsi Hugging Face'te).
-   - Hugging Face oyuncuları eşleyince her oyuncuya İMZALI BİR BİLET verir (HMAC, MAC_SECRET ile).
-   - Maç bitince sonuç, imzalı bir HTTP isteğiyle Hugging Face'e bildirilir.
-   v2.1:
-     - Takım modlarında disk ve top büyütüldü (DK): ekranda 3v3'te de küçülmez. Tüm diskler aynı boyutta.
-     - "Vurdum ama top gitmedi" hatası düzeltildi: top duvara/direğe sıkışınca artık duvar boyunca kayar.
-     - Bot zekası yeniden yazıldı: top yörüngesi tahmini, hedefe doğru vuruş, kaleci, destek, rakip kaleye nişan.
-   Biletteki  m: 2|3  takım boyutu (2v2 / 3v3), s = takım içi sıra (0..m-1). m yoksa 1v1.
-   Roller: 1v1 a,b | 2v2 mavi=a,b kırmızı=c,d | 3v3 mavi=a,b,c kırmızı=d,e,f | bot maçı: insanlar a,b,c...
+   NOXBALL MAÇ SUNUCUSU  (Render)   v2.2
+   - SADECE maçı yönetir: fizik, skor, geri sayım, gol, bitiş.
+   - v2.2: Gelişmiş 2v2 / 3v3 Takım Bot Zekâsı:
+       * Dinamik rol dağılımı (Forvet / Kaleci / Kanat-Destek) + insan takım arkadaşı uyumu
+       * Köşe, direk ve duvar sekmeli yörünge tahmini
+       * Kale boşluklarına nişan, duvar sektirme (bank shot) ve açık takım arkadaşına pas
+       * Şut koridorundan çekilme (kendi şutunu kesmeme) ve köşe kilidi çözme
    Ortam değişkenleri: MAC_SECRET, HF_URL, PORT
    ===================================================================== */
 'use strict';
@@ -35,8 +32,6 @@ const KOPMA_TOLERANS = 6000;
 const SUSKUNLUK_MS = 7000;
 const ODA_BEKLEME_MS = 80000;
 
-// Saha büyütme (ZOOM) ve disk/top büyütme (DK). oyun.html'deki TAKIM_ZOOM / TAKIM_DK ile AYNI olmalı.
-// Ekranda disk boyu = 24*DK/ZOOM sabit kalır (2v2: 22.2px, 3v3: 21.7px): saha büyür, oyuncu/top ekran boyutu değişmez. Top = 14*DK.
 const ZOOM = { 1: 1, 2: 1.6, 3: 2.0 };
 const DK = { 1: 1, 2: 1.48, 3: 1.81 };
 function geo(T) {
@@ -97,7 +92,7 @@ function yayin(o, obj, hizli) {
   for (const r of o.roller) {
     const oy = o.oy[r];
     if (!oy || !oy.ws || oy.ws.readyState !== 1) continue;
-    if (hizli && oy.ws.bufferedAmount > 16384) continue;     // hat tıkandı: eski görüntüyü biriktirme
+    if (hizli && oy.ws.bufferedAmount > 16384) continue;
     try { oy.ws.send(s); } catch (_) {}
   }
 }
@@ -109,7 +104,6 @@ function diskKisit(o, d, renk) {
   d.x = kisitla(d.x, G.sol + r, G.sag - r);
   d.y = renk === 'mavi' ? kisitla(d.y, G.mid + r, G.alt - r) : kisitla(d.y, G.ust + r, G.mid - r);
 }
-// Aynı takımdaki diskler birbirinin içine giremez (eşit itiş). Rakip diskler zaten ayrı yarı sahalarda.
 function diskAyir(o) {
   for (const renk of ['mavi', 'kirmizi']) {
     const a = o.dk[renk];
@@ -134,22 +128,21 @@ function carpismayiCoz(o, disk, renk) {
   const t = o.top, G = o.G;
   const dx = t.x - disk.x, dy = t.y - disk.y, mesafe = Math.sqrt(dx * dx + dy * dy), minM = t.r + disk.r;
   if (!(mesafe < minM)) return;
-  const ileri = renk === 'mavi' ? -1 : 1;                       // diskin rakip kaleye doğru yönü (y ekseninde)
+  const ileri = renk === 'mavi' ? -1 : 1;
   let nx, ny;
   if (mesafe > 0.0001) { nx = dx / mesafe; ny = dy / mesafe; } else { nx = 0; ny = ileri; }
   const ic = minM - mesafe;
   const px = t.x + nx * ic, py = t.y + ny * ic, kapi = t.x > G.kSol && t.x < G.kSag;
-  // Top duvara/köşeye sıkışıyorsa (disk topu duvara doğru itiyorsa) normali duvar boyunca çevir: "vurdum ama top gitmedi" hatası
   const bx = (px - t.r < G.sol && nx < 0) || (px + t.r > G.sag && nx > 0);
   const by = !kapi && ((py - t.r < G.ust && ny < 0) || (py + t.r > G.alt && ny > 0));
-  if (bx && by) {                                               // köşe: sahanın içine doğru
+  if (bx && by) {
     nx = G.cx >= t.x ? 1 : -1; ny = G.mid >= t.y ? 1 : -1; const m = Math.hypot(nx, ny); nx /= m; ny /= m;
     t.x = kisitla(disk.x + nx * minM, G.sol + t.r, G.sag - t.r); t.y = kisitla(disk.y + ny * minM, G.ust + t.r, G.alt - t.r);
-  } else if (bx) {                                              // yan duvar: topu duvar boyunca (rakip kaleye doğru) kaydır
+  } else if (bx) {
     ny = Math.abs(ny) < 0.15 ? ileri : (ny >= 0 ? 1 : -1); nx = 0;
     t.y = disk.y + ny * Math.sqrt(Math.max(1, minM * minM - dx * dx));
     t.x = kisitla(t.x, G.sol + t.r, G.sag - t.r);
-  } else if (by) {                                              // üst/alt duvar (kale ağzı dışında)
+  } else if (by) {
     nx = Math.abs(nx) < 0.15 ? (G.cx >= t.x ? 1 : -1) : (nx >= 0 ? 1 : -1); ny = 0;
     t.x = disk.x + nx * Math.sqrt(Math.max(1, minM * minM - dy * dy));
     t.y = kisitla(t.y, G.ust + t.r, G.alt - t.r);
@@ -200,141 +193,289 @@ function santraSifirla(o) {
   o.sonVuran = 'mavi'; o.bs = {};
 }
 
-/* ---------------- BOT v2 ----------------
-   Bakış: botun kendi kalesi y küçük, rakip kalesi y büyük olacak şekilde çevrilir (V()).
-   Her tick: topun yörüngesi tahmin edilir -> en erken yetişen disk "forvet" olur, topun ARKASINA geçip rakip kaleye doğru vurur;
-   en geride kalan "kaleci" olur (top kaleye gidiyorsa yörüngeyi keser), kalanlar "destek" olur (orta saha). */
-const BOT_HIZ = 11.5;                      // diskin tick başına gerçek hızı (1v1 ölçeği); büyük sahada sqrt(f) ile büyür
-function topIz(o, n) {                     // topun n tick sonrasını tahmin et (duvar sekmeli, disksiz)
-  const t = o.top, G = o.G, r = t.r, out = [];
+/* ---------------- GELİŞMİŞ 2v2 / 3v3 BOT ZEKÂSI (v2.2) ---------------- */
+const BOT_HIZ = 12.2;
+
+function simDirekNokta(x, y, vx, vy, px, py, minD) {
+  const dx = x - px, dy = y - py, dist = Math.hypot(dx, dy);
+  if (dist < minD && dist > 0) {
+    const nx = dx / dist, ny = dy / dist;
+    x = px + nx * minD; y = py + ny * minD;
+    const dot = vx * nx + vy * ny;
+    if (dot < 0) { vx = (vx - 2 * dot * nx) * SEKME; vy = (vy - 2 * dot * ny) * SEKME; }
+  }
+  return [x, y, vx, vy];
+}
+
+function topIz(o, n) {
+  const t = o.top, G = o.G, r = t.r, minD = r + G.direk, maxK = KOSE_R - r, out = [];
   let x = t.x, y = t.y, vx = t.vx, vy = t.vy;
   for (let i = 0; i < n; i++) {
     x += vx; y += vy; vx *= t.surtunme; vy *= t.surtunme;
-    if (x - r < G.sol) { x = G.sol + r; vx = -vx * SEKME; } else if (x + r > G.sag) { x = G.sag - r; vx = -vx * SEKME; }
-    if (!(x > G.kSol && x < G.kSag)) {
-      if (y - r < G.ust) { y = G.ust + r; vy = -vy * SEKME; } else if (y + r > G.alt) { y = G.alt - r; vy = -vy * SEKME; }
+    [x, y, vx, vy] = simDirekNokta(x, y, vx, vy, G.kSol, G.ust, minD);
+    [x, y, vx, vy] = simDirekNokta(x, y, vx, vy, G.kSag, G.ust, minD);
+    [x, y, vx, vy] = simDirekNokta(x, y, vx, vy, G.kSol, G.alt, minD);
+    [x, y, vx, vy] = simDirekNokta(x, y, vx, vy, G.kSag, G.alt, minD);
+    let kx = -1, ky = -1;
+    if (x < G.sol + KOSE_R && y < G.ust + KOSE_R) { kx = G.sol + KOSE_R; ky = G.ust + KOSE_R; }
+    else if (x > G.sag - KOSE_R && y < G.ust + KOSE_R) { kx = G.sag - KOSE_R; ky = G.ust + KOSE_R; }
+    else if (x < G.sol + KOSE_R && y > G.alt - KOSE_R) { kx = G.sol + KOSE_R; ky = G.alt - KOSE_R; }
+    else if (x > G.sag - KOSE_R && y > G.alt - KOSE_R) { kx = G.sag - KOSE_R; ky = G.alt - KOSE_R; }
+    if (kx >= 0) {
+      const dx = x - kx, dy = y - ky, dist = Math.hypot(dx, dy);
+      if (dist > maxK && dist > 0) {
+        const nx = dx / dist, ny = dy / dist;
+        x = kx + nx * maxK; y = ky + ny * maxK;
+        const dot = vx * nx + vy * ny;
+        if (dot > 0) { vx = (vx - 2 * dot * nx) * SEKME; vy = (vy - 2 * dot * ny) * SEKME; }
+      }
+    } else {
+      if (x - r < G.sol) { x = G.sol + r; vx = -vx * SEKME; } else if (x + r > G.sag) { x = G.sag - r; vx = -vx * SEKME; }
+      if (!(x > G.kSol && x < G.kSag)) {
+        if (y - r < G.ust) { y = G.ust + r; vy = -vy * SEKME; } else if (y + r > G.alt) { y = G.alt - r; vy = -vy * SEKME; }
+      }
     }
-    out.push({ x, y });
+    out.push({ x, y, vx, vy });
   }
   return out;
 }
-function botGit(o, d, alt, tx, ty, hiz) {  // (tx,ty) bot bakışında; diskin gerçek hızı hiz'i geçmez
+
+function botGit(o, d, alt, tx, ty, hiz) {
   const G = o.G, toplam = G.ust + G.alt, wy = alt ? toplam - ty : ty;
-  const dx = tx - d.x, dy = wy - d.y, dist = Math.hypot(dx, dy), adim = hiz / 0.35;    // disk hedefe 0.35 oranında yaklaşır
+  const dx = tx - d.x, dy = wy - d.y, dist = Math.hypot(dx, dy), adim = hiz / 0.35;
   const k = dist > adim ? adim / dist : 1;
   d.hedefX = kisitla(d.x + dx * k, G.sol + d.r, G.sag - d.r);
   d.hedefY = alt ? kisitla(d.y + dy * k, G.mid + d.r, G.alt - d.r) : kisitla(d.y + dy * k, G.ust + d.r, G.mid - d.r);
 }
+
+function noktaDogruMesafe(px, py, x0, y0, x1, y1) {
+  const sx = x1 - x0, sy = y1 - y0, L2 = sx * sx + sy * sy || 1;
+  const u = kisitla(((px - x0) * sx + (py - y0) * sy) / L2, 0, 1);
+  return Math.hypot(px - (x0 + sx * u), py - (y0 + sy * u));
+}
+
 function botTakim(o, renk, slotlar) {
   if (!slotlar.length) return;
   const G = o.G, f = G.f, t = o.top, alt = renk === 'mavi', toplam = G.ust + G.alt;
   const V = y => alt ? toplam - y : y;
+  const Vy = vy => alt ? -vy : vy;
   const hiz = BOT_HIZ * Math.sqrt(f);
-  const D = slotlar.map(s => o.dk[renk][s]);
-  const O = o.dk[renk === 'mavi' ? 'kirmizi' : 'mavi'].map(d => ({ x: d.x, y: V(d.y) }));     // rakip diskler (bot bakışı)
-  const r = D[0].r, minM = t.r + r, yarim = G.mid + minM * 0.6;   // orta çizgideki (santra) topa da yetişilebilir
-  const iz = topIz(o, 45).map(p => ({ x: p.x, y: V(p.y) }));
-  const bx = t.x, by = V(t.y), hizTop = Math.hypot(t.vx, t.vy);
+  const botSet = new Set(slotlar);
+  const allD = o.dk[renk];
+  const O = o.dk[renk === 'mavi' ? 'kirmizi' : 'mavi'].map(d => ({ x: d.x, y: V(d.y), vx: d.vx, vy: Vy(d.vy) }));
+  const r = allD[0].r, minM = t.r + r, reachY = G.mid + minM * 0.55;
 
-  // Döngü kırıcı: top kendi yarı sahamızda duvar/köşede ~1.5 sn aynı yerde kalıyorsa geri çekil, açıyı değiştir
-  const st = o.bs[renk] || (o.bs[renk] = { sx: 0, sy: 0, n: 0, geri: 0, varyant: 0, bek: 0 });
+  const iz = topIz(o, 55).map(p => ({ x: p.x, y: V(p.y), vx: p.vx, vy: Vy(p.vy) }));
+  const bx = t.x, by = V(t.y), bvx = t.vx, bvy = Vy(t.vy), hizTop = Math.hypot(bvx, bvy);
+
+  // En yakın rakibin topa uzaklığı (baskı ölçüsü)
+  let minOppDist = 1e9;
+  for (const od of O) minOppDist = Math.min(minOppDist, Math.hypot(od.x - bx, od.y - by));
+
+  // Köşe / duvar kilidi kırıcı
+  const st = o.bs[renk] || (o.bs[renk] = { sx: 0, sy: 0, n: 0, geri: 0, varyant: 0, bek: 0, atakIdx: -1 });
   const duvarYakin = (px, py) => px - G.sol < t.r + 36 * f || G.sag - px < t.r + 36 * f || py - G.ust < t.r + 30 * f;
-  if (duvarYakin(bx, by) && by < G.mid && Math.hypot(bx - st.sx, by - st.sy) < 60 * f) { if (++st.n > 90) { st.n = 0; st.geri = 50; st.varyant = (st.varyant + 1) % 3; } }
-  else { st.sx = bx; st.sy = by; st.n = 0; }
+  if (duvarYakin(bx, by) && by < G.mid && Math.hypot(bx - st.sx, by - st.sy) < 55 * f) {
+    if (++st.n > 65) { st.n = 0; st.geri = 38; st.varyant = (st.varyant + 1) % 3; }
+  } else { st.sx = bx; st.sy = by; st.n = 0; }
   const geri = st.geri > 0; if (geri) st.geri--;
-  // Forvet dışındaki diskler topa yaklaşmaz (iki bot topu sandviçleyip döngüye sokmasın)
-  const uzak = (tx, ty) => { const dx = tx - bx, dy = ty - by, m = Math.hypot(dx, dy), mn = minM * 2.6; if (m >= mn) return [tx, ty]; const u = m > 0.001 ? [dx / m, dy / m] : [0, -1]; return [bx + u[0] * mn, by + u[1] * mn]; };
 
-  // NİŞAN: rakip diskler tarafından en az engellenen kale noktasını seç (vuruş çizgisinin rakip disklere uzaklığı en büyük olan)
-  const aimY = G.alt + 30;
-  const nisan = q => {
-    let en = G.cx, bc = -1;
-    for (const ox of [-48, -26, 0, 26, 48]) {
-      const ax = G.cx + ox * f, sx = ax - q.x, sy = aimY - q.y, L2 = sx * sx + sy * sy || 1;
-      let cl = 1e9;
-      for (const od of O) { const u = kisitla(((od.x - q.x) * sx + (od.y - q.y) * sy) / L2, 0, 1); cl = Math.min(cl, Math.hypot(od.x - (q.x + sx * u), od.y - (q.y + sy * u))); }
-      cl -= Math.abs(ox) * 0.12 * f;                                   // eşitlikte ortaya yakın (daha güvenli) olanı tercih et
-      if (cl > bc) { bc = cl; en = ax; }
-    }
-    return en + Math.sin(o.tick * 0.013 + o.botTohum) * 5 * f;       // çok küçük insanvari sapma
+  // Yol açıklığı: rakip disklerin bu çizgiye en yakın mesafesi
+  const yolTemiz = (x0, y0, x1, y1) => {
+    let cl = 1e9;
+    for (const od of O) cl = Math.min(cl, noktaDogruMesafe(od.x, od.y, x0, y0, x1, y1));
+    return cl;
   };
 
-  // Her disk için topa YETİŞEBİLECEĞİ ilk nokta (yalnızca kendi yarı sahamızda); top karşı yarıdaysa kimse topa gitmez
-  const bilgi = D.map(d => {
+  // En iyi şut / duvar sektirme / pas hedefini seç
+  const aimY = G.alt + 22 * f;
+  const hedefSec = (q, dyv, dxv, dIdx) => {
+    // 1) Direkt kale şutları (7 nokta)
+    let bestX = G.cx, bestY = aimY, bestScore = -1e9, bestClear = -1;
+    for (let i = -3; i <= 3; i++) {
+      const ax = G.cx + i * 19 * f;
+      const cl = yolTemiz(q.x, q.y, ax, aimY);
+      const score = cl - Math.abs(i) * 4.5 * f;
+      if (score > bestScore) { bestScore = score; bestX = ax; bestClear = cl; }
+    }
+    // 2) Direkt yol çok kapalıysa yan duvardan sektirme (bank shot) dene
+    if (bestClear < r * 1.15 && q.y > G.ust + 80 * f) {
+      for (const duvarX of [G.sol + t.r, G.sag - t.r]) {
+        const mirX = 2 * duvarX - G.cx;
+        const tWall = (duvarX - q.x) / ((mirX - q.x) || 0.001);
+        if (tWall > 0.05 && tWall < 0.85) {
+          const wy = q.y + (aimY - q.y) * tWall;
+          if (wy > q.y && wy < G.alt - 40 * f) {
+            const clBank = Math.min(yolTemiz(q.x, q.y, duvarX, wy), yolTemiz(duvarX, wy, G.cx, aimY));
+            if (clBank > bestClear + 14 * f) { bestClear = clBank; bestX = mirX; bestY = aimY; }
+          }
+        }
+      }
+    }
+    // 3) 2v2 / 3v3 Pas: şut kapalıysa ve açıkta uygun bir takım arkadaşı varsa pas at
+    if (allD.length >= 2 && bestClear < r * 0.95 && q.y < G.mid - 20 * f) {
+      for (let j = 0; j < allD.length; j++) {
+        if (j === dIdx) continue;
+        const tm = allD[j], tmy = V(tm.y);
+        if (tmy > G.mid - 28 * f || tmy < G.ust + 55 * f) continue;
+        if (Math.hypot(tm.x - q.x, tmy - q.y) < minM * 3) continue;
+        const pasCl = yolTemiz(q.x, q.y, tm.x, tmy + 20 * f);
+        const tmShotCl = yolTemiz(tm.x, tmy, G.cx, aimY);
+        if (pasCl > r * 1.1 && tmShotCl > bestClear + 16 * f) {
+          return { ax: tm.x, ay: tmy + 22 * f };
+        }
+      }
+    }
+    return { ax: bestX + Math.sin(o.tick * 0.013 + o.botTohum) * 4 * f, ay: bestY };
+  };
+
+  // Topun bizim yarı sahadaki yetişme analizi (tüm takım için)
+  const bilgi = allD.map((d, i) => {
     const dy = V(d.y);
     for (let k = 0; k < iz.length; k++) {
       const q = iz[k];
-      if (q.y > yarim) continue;
-      if (Math.hypot(q.x - d.x, q.y - dy) <= hiz * (k + 6) + minM * 0.5) return { k: k + 1, q };
+      if (q.y > reachY) continue;
+      const dist = Math.hypot(q.x - d.x, q.y - dy);
+      if (dist <= hiz * (k + 6) + minM * 0.5) {
+        const wrongSide = dy > q.y - minM * 0.25 ? 10 : 0;      // topun önündeyse başka takım arkadaşına öncelik ver
+        const humanBonus = !botSet.has(i) && Math.hypot(d.vx, d.vy) > 1.6 && dist < 130 * f ? -5 : 0;
+        return { k: k + 1, q, score: (k + 1) + wrongSide + humanBonus };
+      }
     }
-    return { k: Infinity, q: null };
+    return { k: Infinity, q: null, score: Infinity };
   });
-  let atak = -1, best = Infinity;
-  bilgi.forEach((b, i) => { if (b.k < best) { best = b.k; atak = i; } });
-  if (D.length === 1 && best > 30) atak = -1;
-  // top henüz bizim yarıda değilse en yakın disk "hazır" bekler (hemen saldırmaz); tek disk varsa o kaleci olur
+
+  // Forvet (atak) seçimi + hafif hysteresis (titremeyi önler)
+  let atak = -1, bestScore = Infinity;
+  bilgi.forEach((b, i) => { if (b.score < bestScore) { bestScore = b.score; atak = i; } });
+  if (st.atakIdx >= 0 && st.atakIdx < allD.length && bilgi[st.atakIdx].score < bestScore + 3.5) {
+    atak = st.atakIdx;
+  }
+  if (allD.length === 1 && atak >= 0 && bilgi[atak].k > 34) atak = -1;
+  st.atakIdx = atak;
+
+  // Kale tehdidi (top yörüngesi + rakibin olası şut çizgisi)
+  const tehditP = iz.find(p => p.y <= G.ust + t.r + 18 * f && p.x > G.kSol - t.r * 1.2 && p.x < G.kSag + t.r * 1.2) || null;
+  let projX = G.cx + (bx - G.cx) * 0.42;
+  for (const od of O) {
+    if (od.y > by + 5 * f && Math.hypot(od.x - bx, od.y - by) < 120 * f) {
+      const tG = (G.ust - od.y) / ((by - od.y) || -0.001);
+      if (tG > 0 && tG < 8) {
+        const gx = od.x + (bx - od.x) * tG;
+        if (gx > G.kSol - 35 * f && gx < G.kSag + 35 * f) { projX = kisitla(gx, G.kSol + r * 0.5, G.kSag - r * 0.5); break; }
+      }
+    }
+  }
+
+  // Top karşı yarıdaysa, topa en yakın oyuncu aktif baskı/bekleme pozisyonu alır
   let bekleyen = -1;
-  if (atak < 0 && D.length > 1) { let bd = 1e9; D.forEach((d, i) => { const m = Math.hypot(d.x - bx, V(d.y) - by); if (m < bd) { bd = m; bekleyen = i; } }); }
-  let kaleci = -1, kY = -1;
-  D.forEach((d, i) => { if (i === atak || i === bekleyen) return; const y = V(d.y); if (kaleci < 0 || y < kY) { kaleci = i; kY = y; } });
+  if (atak < 0 && allD.length > 1) {
+    let bd = 1e9;
+    allD.forEach((d, i) => { const m = Math.hypot(d.x - bx, V(d.y) - by); if (m < bd) { bd = m; bekleyen = i; } });
+  }
+  // Kaleci: atak/bekleyen dışındaki en gerideki (kendi kalesine en yakın) oyuncu
+  let kaleci = -1, kY = 1e9;
+  allD.forEach((d, i) => {
+    if (i === atak || i === bekleyen) return;
+    const y = V(d.y);
+    if (kaleci < 0 || y < kY) { kaleci = i; kY = y; }
+  });
   if (kaleci < 0 && atak < 0 && bekleyen < 0) kaleci = 0;
-  // KALE TEHDİDİ: top yörüngesi (duvar sekmeleriyle) kale ağzından içeri giriyorsa tüm savunma o noktaya kapanır
-  const tehditP = iz.find(p => p.y <= G.ust + t.r + 12 * f && p.x > G.cx - 70 * f - t.r && p.x < G.cx + 70 * f + t.r) || null;
-  const blok = (yon, h) => { const ky = G.ust + 44 * f; return [kisitla(tehditP.x + yon * (r * 2 + 4), G.sol + r, G.sag - r), ky, h]; };
-  const giris = iz.find(p => p.y <= yarim), hx = giris ? giris.x : bx;
-  const hazirX = kisitla(G.cx + (hx - G.cx) * 0.6, G.sol + r, G.sag - r), hazirY = G.mid - 105 * f;
+
+  // Forvetin hedefi (koridor kaçınması için)
+  const atakHedef = atak >= 0 ? hedefSec(bilgi[atak].q, V(allD[atak].y), allD[atak].x, atak) : null;
+  const uzak = (tx, ty) => {
+    // Topa yapışma + forvetin şut koridorunu kesme
+    let x = tx, y = ty;
+    const dx = x - bx, dy = y - by, m = Math.hypot(dx, dy), mn = minM * 2.4;
+    if (m < mn) { const u = m > 0.001 ? [dx / m, dy / m] : [0, -1]; x = bx + u[0] * mn; y = by + u[1] * mn; }
+    if (atak >= 0 && atakHedef) {
+      const aq = bilgi[atak].q;
+      const distKor = noktaDogruMesafe(x, y, aq.x, aq.y, atakHedef.ax, atakHedef.ay);
+      if (distKor < minM * 2.1) {
+        const push = (x >= aq.x ? 1 : -1) * (minM * 2.2 - distKor);
+        x = kisitla(x + push, G.sol + r, G.sag - r);
+      }
+    }
+    return [x, y];
+  };
+
+  const giris = iz.find(p => p.y <= reachY), hx = giris ? giris.x : bx;
+  const hazirX = kisitla(G.cx + (hx - G.cx) * 0.65, G.sol + r, G.sag - r), hazirY = G.mid - 82 * f;
 
   let destekSay = 0;
-  D.forEach((d, i) => {
+  allD.forEach((d, i) => {
+    if (!botSet.has(i)) return;     // insan oyuncuyu yönetme
     const dyv = V(d.y);
+
     if (i === atak) {
       const q = bilgi[i].q, kk = bilgi[i].k;
-      if (geri && duvarYakin(bx, by)) {                                           // geri çekil: topun yanından çık, sonra başka açıyla gel
+      if (geri && duvarYakin(bx, by)) {
         const cx0 = G.cx - bx, cy0 = (G.mid - 40 * f) - by, m0 = Math.hypot(cx0, cy0) || 1;
-        botGit(o, d, alt, bx + cx0 / m0 * minM * 3.2, by + cy0 / m0 * minM * 3.2, hiz); return;
+        botGit(o, d, alt, bx + cx0 / m0 * minM * 3.2, by + cy0 / m0 * minM * 3.2, hiz);
+        return;
       }
-      let ax = nisan(q), ay = aimY;
-      if (duvarYakin(q.x, q.y)) {                                                 // top duvar/köşede: duvar boyunca / içeri / kaleye (varyant sırayla değişir)
+      let ax = atakHedef.ax, ay = atakHedef.ay;
+      if (duvarYakin(q.x, q.y)) {
         const ic = q.x < G.cx ? 1 : -1;
-        if (st.varyant === 0) { ax = q.y - G.ust < t.r + 30 * f ? G.cx : q.x + ic * 70 * f; ay = q.y + 150 * f; }
-        else if (st.varyant === 1) { ax = G.cx; ay = q.y + 70 * f; }
+        if (st.varyant === 0) { ax = q.y - G.ust < t.r + 30 * f ? G.cx : q.x + ic * 75 * f; ay = q.y + 150 * f; }
+        else if (st.varyant === 1) { ax = G.cx; ay = q.y + 80 * f; }
       }
       let ux = ax - q.x, uy = ay - q.y; const um = Math.hypot(ux, uy) || 1; ux /= um; uy /= um;
       const rx = d.x - q.x, ry = dyv - q.y;
       const boyunca = rx * ux + ry * uy, dik = -rx * uy + ry * ux, yakin = Math.hypot(rx, ry);
-      const hizali = boyunca < -minM * 0.4 && Math.abs(dik) < minM * 0.8 + 12;   // topun arkasında, vuruş çizgisinin üzerindeyiz
+      const hizali = boyunca < -minM * 0.25 && Math.abs(dik) < minM * 0.8 + 10 * f;
       st.bek = hizali ? st.bek + 1 : 0;
-      // VURUŞ ZAMANLAMASI: gelen top yaklaşınca (≤8 tick) ya da duran top için kısa bir bekleyişten sonra sert vur; hemen atılma yok
-      const vur = hizali && yakin < minM + 90 * f && (hizTop > 2 ? kk <= 8 : st.bek >= 14);
-      if (vur) botGit(o, d, alt, q.x + ux * minM * 0.6, q.y + uy * minM * 0.6, hiz * 1.35);
-      else if (boyunca < -minM * 0.4) botGit(o, d, alt, q.x - ux * (minM + 10), q.y - uy * (minM + 10), hiz);   // arkaya geç ve bekle
-      else {                                                                      // topun önündeyiz: yandan dolan, kendi kaleye vurma
-        const yan = dik >= 0 ? 1 : -1;
-        botGit(o, d, alt, q.x - ux * (minM + 16) - uy * yan * (minM + 18), q.y - uy * (minM + 16) + ux * yan * (minM + 18), hiz);
+
+      const baski = minOppDist < 95 * f;
+      const vur = hizali && yakin < minM + 95 * f && (hizTop > 2 ? kk <= 9 : (baski || st.bek >= 6));
+      if (vur) {
+        botGit(o, d, alt, q.x + ux * minM * 0.75, q.y + uy * minM * 0.75, hiz * 1.38);
+      } else if (boyunca < -minM * 0.25) {
+        const wx = kisitla(q.x - ux * (minM + 12 * f), G.sol + r + 2, G.sag - r - 2);
+        const wy = kisitla(q.y - uy * (minM + 12 * f), G.ust + r + 2, G.mid - r - 2);
+        botGit(o, d, alt, wx, wy, hiz);
+      } else {
+        // Topun önündeyiz: duvardan uzak taraftan dolaş (kendi kaleye çarpma!)
+        const solBos = q.x - G.sol, sagBos = G.sag - q.x;
+        const yan = Math.abs(solBos - sagBos) > 25 * f ? (sagBos > solBos ? 1 : -1) : (dik >= 0 ? 1 : -1);
+        botGit(o, d, alt, q.x - ux * (minM + 16 * f) - uy * yan * (minM + 20 * f), q.y - uy * (minM + 16 * f) + ux * yan * (minM + 20 * f), hiz);
       }
     } else if (i === bekleyen) {
-      if (tehditP) { const b = blok(1, hiz * 1.3); botGit(o, d, alt, b[0], b[1], b[2]); }   // tehlike: kaleyi kapat
-      else { const p = uzak(hazirX, hazirY); botGit(o, d, alt, p[0], p[1], hiz); }          // hazır bekleme noktası
+      if (tehditP) {
+        const ky = G.ust + 42 * f;
+        botGit(o, d, alt, kisitla(tehditP.x + (tehditP.x < G.cx ? r * 1.8 : -r * 1.8), G.sol + r, G.sag - r), ky, hiz * 1.32);
+      } else {
+        const p = uzak(hazirX, hazirY);
+        botGit(o, d, alt, p[0], p[1], hiz);
+      }
     } else if (i === kaleci) {
-      const ky = G.ust + 44 * f;
-      let kx = G.cx + (bx - G.cx) * 0.45, h = hiz;
-      const gelen = iz.find(p => p.y <= ky + 20 * f);                            // top kaleye geliyorsa yörüngeyi kes
+      const ky = G.ust + 40 * f;
+      let kx = projX, h = hiz;
+      const gelen = iz.find(p => p.y <= ky + 22 * f);
       if (tehditP) { kx = tehditP.x; h = hiz * 1.4; }
-      else if (gelen && (alt ? -t.vy : t.vy) < -0.8) { kx = gelen.x; h = hiz * 1.2; }
-      kx = kisitla(kx, G.cx - 62 * f, G.cx + 62 * f);
-      const kp = (tehditP || hizTop > 3) ? [kx, ky] : uzak(kx, ky);               // kaleci, tehlikede topun yolundan ASLA kaçmaz
+      else if (gelen && gelen.vy < -0.7) { kx = gelen.x; h = hiz * 1.25; }
+      kx = kisitla(kx, G.kSol + r * 0.5, G.kSag - r * 0.5);
+      const kp = (tehditP || hizTop > 2.5) ? [kx, ky] : uzak(kx, ky);
       botGit(o, d, alt, kp[0], kp[1], h);
     } else {
+      // 3v3 Kanat / Destek oyuncusu
       const yan = (destekSay++ % 2 ? 1 : -1);
-      if (tehditP) { const b = blok(-yan, hiz * 1.3); botGit(o, d, alt, b[0], b[1], b[2]); return; }
-      const dy0 = G.mid - 78 * f, dx0 = G.cx + (bx - G.cx) * 0.7 + yan * 42 * f;
-      const sp = uzak(kisitla(dx0, G.sol + r, G.sag - r), dy0); botGit(o, d, alt, sp[0], sp[1], hiz);
+      if (tehditP && kaleci >= 0 && Math.abs(allD[kaleci].x - tehditP.x) > 48 * f) {
+        botGit(o, d, alt, kisitla(tehditP.x - yan * (r * 1.6), G.kSol, G.kSag), G.ust + 44 * f, hiz * 1.32);
+        return;
+      }
+      const kanatX = bx < G.cx ? G.cx + 78 * f * (yan > 0 ? 1 : 0.4) : G.cx - 78 * f * (yan > 0 ? 1 : 0.4);
+      const dy0 = atak >= 0 ? G.mid - 74 * f : G.mid - 98 * f;
+      const sp = uzak(kisitla(kanatX, G.sol + r + 10 * f, G.sag - r - 10 * f), dy0);
+      botGit(o, d, alt, sp[0], sp[1], hiz);
     }
   });
 }
+
 function botAdim(o) {
-  botTakim(o, o.botRenk, Array.from({ length: o.T }, (_, i) => i));                  // rakip takımın tamamı bot
-  if (o.insan < o.T) botTakim(o, o.botRenk === 'mavi' ? 'kirmizi' : 'mavi', Array.from({ length: o.T - o.insan }, (_, i) => o.insan + i));   // insan takımında boş kalan yerler
+  botTakim(o, o.botRenk, Array.from({ length: o.T }, (_, i) => i));
+  if (o.insan < o.T) botTakim(o, o.botRenk === 'mavi' ? 'kirmizi' : 'mavi', Array.from({ length: o.T - o.insan }, (_, i) => o.insan + i));
 }
 
 function adim(o) {
@@ -386,7 +527,6 @@ function adim(o) {
   for (const [d, renk] of o.liste) carpismayiCoz(o, d, renk);
 }
 
-// Anlık görüntü. 1v1: k:'s'   Takım: k:'s2'  (m ve r dizileri 2*T sayı: [x0,y0,x1,y1,...])
 function goruntu(o) {
   o.tick++;
   const t = o.top;
@@ -399,7 +539,7 @@ function goruntu(o) {
   for (const d of o.dk.kirmizi) rk.push(r(d.x), r(d.y));
   const now = Date.now();
   const anahtar = b.join() + '|' + m.join() + '|' + rk.join() + '|' + g + v + '|' + Math.ceil(o.sayac / 60);
-  if (g === 0 && !durumDegisti && anahtar === o.sSonAnahtar && now - o.sSonZaman < 250) return;   // hiçbir şey kıpırdamıyor: bant genişliği harcama
+  if (g === 0 && !durumDegisti && anahtar === o.sSonAnahtar && now - o.sSonZaman < 250) return;
   o.sSonAnahtar = anahtar; o.sSonZaman = now; o.sSonG = g; o.sSonV = v;
   yayin(o, { k: o.v2 ? 's2' : 's', t: zaman(o), b: b, m: m, r: rk, g: g, z: o.gol.z, v: v, c: o.sayac }, true);
 }
@@ -417,7 +557,7 @@ function odaKapat(o, gecikme) {
     odalar.delete(o.id);
   }, gecikme || 0);
 }
-function macBitir(o, kazRol, neden) {          // 1v1
+function macBitir(o, kazRol, neden) {
   if (o.bitti2) return;
   const kazRenk = renkOf(o, kazRol);
   yayin(o, { k: 'son', w: kazRenk, m: o.skorM, r: o.skorK, n: neden });
@@ -425,7 +565,7 @@ function macBitir(o, kazRol, neden) {          // 1v1
   sonucBildir({ mid: o.id, kazanan: kazRol, gol: { a: golOf('a'), b: golOf('b') }, neden: neden, sure: Date.now() - o.t0 });
   odaKapat(o, 2500);
 }
-function macBitirV2(o, kazRenk, neden) {       // 2v2 / 3v3: kazanan takım rengi
+function macBitirV2(o, kazRenk, neden) {
   if (o.bitti2) return;
   yayin(o, { k: 'son', w: kazRenk, m: o.skorM, r: o.skorK, n: neden });
   sonucBildir({ mid: o.id, mod: 'v' + o.T, kazanan: kazRenk, gol: { mavi: o.skorM, kirmizi: o.skorK }, neden: neden, sure: Date.now() - o.t0 });
@@ -441,7 +581,7 @@ function oyuncuAyrildi(o, rol) {
   if (!o.basladi || Date.now() - o.t0 < MIN_MAC_MS) return macIptal(o);
   if (o.v2 && o.bot) {
     const oy = o.oy[rol]; if (oy) oy.ayrildi = true;
-    if (o.roller.every(r => o.oy[r] && o.oy[r].ayrildi)) macIptal(o);   // bütün insanlar gitti
+    if (o.roller.every(r => o.oy[r] && o.oy[r].ayrildi)) macIptal(o);
     return;
   }
   if (o.v2) {
@@ -451,12 +591,12 @@ function oyuncuAyrildi(o, rol) {
     if (mg && kg) return macIptal(o);
     if (mg) return macBitirV2(o, 'kirmizi', 'ayrildi');
     if (kg) return macBitirV2(o, 'mavi', 'ayrildi');
-    return;                                   // takımdan biri gitti, diğerleri devam ediyor
+    return;
   }
   macBitir(o, digerRol(rol), 'ayrildi');
 }
 
-/* ---------------- Sonucu Hugging Face'e bildir (imzalı, tekrar denemeli) ---------------- */
+/* ---------------- Sonucu Hugging Face'e bildir ---------------- */
 function sonucBildir(sonuc) {
   if (!HF_URL || !SECRET || typeof fetch !== 'function') { console.warn('[SONUC] HF_URL/MAC_SECRET yok, bildirilemedi:', sonuc.mid); return; }
   const govde = JSON.stringify(sonuc);
@@ -478,7 +618,7 @@ function sonucBildir(sonuc) {
   dene();
 }
 
-/* ---------------- Ana döngü: tüm odalar sabit 60 Hz ---------------- */
+/* ---------------- Ana döngü: sabit 60 Hz ---------------- */
 let dongu = null, sonHr = 0n, birikim = 0;
 function donguBaslat() {
   if (dongu) return;
@@ -530,7 +670,7 @@ const server = http.createServer((req, res) => {
   }
   res.writeHead(404, CORS); res.end();
 });
-server.on('connection', s => { try { s.setNoDelay(true); } catch (_) {} });   // Nagle kapalı: düşük ping
+server.on('connection', s => { try { s.setNoDelay(true); } catch (_) {} });
 
 /* ---------------- WebSocket ---------------- */
 const wss = new WebSocketServer({ server, maxPayload: 2048, perMessageDeflate: false });
@@ -545,7 +685,7 @@ function odayaAl(ws, p) {
   let oy = o.oy[p.p];
   if (T === 1) {
     const diger = o.oy[digerRol(p.p)];
-    if (diger && diger.renk === p.r) return ws.close();            // aynı renk iki oyuncu: olmamalı
+    if (diger && diger.renk === p.r) return ws.close();
   }
   if (!oy) oy = o.oy[p.p] = { rol: p.p, renk: p.r, slot: T > 1 ? p.s : 0, ws: null, bagli: false, gor: 0, kopus: 0, gSeq: 0, emojiT: 0, ayrildi: false };
   else if (oy.renk !== p.r) return ws.close();
@@ -555,7 +695,7 @@ function odayaAl(ws, p) {
   gonder(ws, { k: 'ok' });
   o.sSonAnahtar = '';
   if (o.basladi) gonder(ws, { k: 'go' });
-  else if (o.roller.every(r => o.oy[r] && o.oy[r].bagli)) {          // herkes hazır: maç başlıyor
+  else if (o.roller.every(r => o.oy[r] && o.oy[r].bagli)) {
     o.basladi = true; o.t0 = Date.now();
     yayin(o, { k: 'go' });
   }
@@ -592,7 +732,7 @@ wss.on('connection', ws => {
         d.hedefY = oy.renk === 'mavi' ? kisitla(y, G.mid + r, G.alt - r) : kisitla(y, G.ust + r, G.mid - r);
         break;
       }
-      case 'e': {                                                // emoji: diğer herkese ilet (takım modunda kimin gönderdiği de gider)
+      case 'e': {
         if (typeof m.id !== 'string' || !EMOJI_ID.test(m.id) || now - oy.emojiT < 500) return;
         oy.emojiT = now;
         for (const r of o.roller) {
@@ -617,4 +757,4 @@ setInterval(() => {
 }, 20000);
 
 ['SIGTERM', 'SIGINT'].forEach(s => process.on(s, () => process.exit(0)));
-server.listen(PORT, () => console.log('NOXBALL maç sunucusu v2.1 :' + PORT));
+server.listen(PORT, () => console.log('NOXBALL maç sunucusu v2.2 :' + PORT));
